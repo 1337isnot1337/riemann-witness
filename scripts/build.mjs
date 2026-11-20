@@ -24,15 +24,23 @@ if(!full){
   }
 }else{
   await cp('public',pages,{recursive:true});
-  let html=await home(new URL(SITE).origin).text();
-  html=html.replace('<head>','<head><meta name="registry-api" content="'+API+'">')
+  async function landingHtml(launch=false){
+    const html=await home(new URL(SITE).origin,launch).text();
+    return html.replace('<head>','<head><meta name="registry-api" content="'+API+'">')
     .replaceAll('href="/#','href="#').replaceAll('href="/"','href="./"')
     .replace(/href="\/(recover|privacy)"/g,(_,p)=>'href="'+API+'/'+p+'"')
     .replace(/(src|href)="\/([^"]+)"/g,'$1="./$2"')
     .replaceAll(new URL(SITE).origin+'/specimen.png',SITE+'specimen.png')
     .replaceAll('content="'+new URL(SITE).origin+'/"','content="'+SITE+'"')
     .replaceAll('href="'+new URL(SITE).origin+'/"','href="'+SITE+'"');
-  await writePublicHtml('index.html',html);
+  }
+  await writePublicHtml('index.html',await landingHtml());
+  await mkdir(pages+'/launch',{recursive:true});
+  const launchHtml=(await landingHtml(true)).replace(/(src|href)="\.\/([^"]*)"/g,'$1="/$2"');
+  await writePublicHtml('launch/index.html',launchHtml);
+  await cp('public/registry-card.png',pages+'/launch/announcement.png');
+  // Earlier shares can still request the prelaunch image by its original URL.
+  await cp('public/registry-card.png',pages+'/coming-soon.png');
   await writeFile(pages+'/specimen.png',await badgePng(null,false,new URL(SITE).hostname));
   await mkdir(pages+'/history',{recursive:true});
   const history=await historyPage().text();
