@@ -36,9 +36,12 @@ class Element {
 }
 
 function searchFixture() {
-  const elements = new Map(['#register', '#search', '#q', '#entries', '#more',
-    '#signatures-plot', '[data-count]', '#registry-total', '#constellation',
+  const elements = new Map(['#register', '#search', '#q', '#entries', '#more', '#registry-order', '.registry-archive',
+    '#signatures-plot', '[data-count]', '#registry-total', '#signature-plot-track', '#signature-plot-marks',
+    '#signature-plot-range', '#signature-plot-name', '#signature-plot-number', '#signature-plot-when',
+    '#signature-plot-earlier', '#signature-plot-later', '#signature-plot-count', '#signature-plot-first-count',
     '#first-signature', '#last-signature'].map(selector => [selector, new Element()]));
+  elements.get('#registry-order').value = 'newest';
   elements.get('#register').selectors.set('.status', new Element());
   const requests = [], timers = [];
   let poll, total = 1;
@@ -69,6 +72,7 @@ function searchFixture() {
   const field = elements.get('#q');
   return {
     requests,
+    order: elements.get('#registry-order'),
     field,
     document,
     timers,
@@ -96,7 +100,7 @@ test('a failed append keeps rows and cursor, and an older search cannot replace 
 
   field.value = 'Unsubmitted';
   more.onclick();
-  const cursor = {q: 'Alpha', before: '1', afterName: 'Alpha'};
+  const cursor = {q: 'Alpha', order: 'newest', before: '1'};
   assert.deepEqual(requests[1].query, cursor);
   requests[1].resolve(Response.json({error: 'Try again.'}, {status: 503}));
   await flush();
@@ -146,7 +150,7 @@ test('a count change updates visible first-page rows without moving focus or res
   results.rect = {top: 20, bottom: 80};
   refresh(4);
   await flush();
-  assert.deepEqual(requests[1].query, {q: ''});
+  assert.deepEqual(requests[1].query, {q: '', order: 'newest'});
   assert.equal(more.disabled, false);
   assert.equal(results.attributes.get('aria-busy'), 'false');
   requests[1].resolve(Response.json({entries: [row(3, 'New'), row(2, 'Previous')], more: true}));
@@ -162,7 +166,7 @@ test('a count change updates visible first-page rows without moving focus or res
   refresh(5);
   await flush();
   more.onclick();
-  assert.deepEqual(requests[3].query, {q: '', before: '2'});
+  assert.deepEqual(requests[3].query, {q: '', order: 'newest', before: '2'});
   requests[3].resolve(Response.json({entries: [row(1, 'Oldest')], more: false}));
   await flush();
   requests[2].resolve(Response.json({entries: [row(4, 'While Paginating')], more: false}));
@@ -172,4 +176,27 @@ test('a count change updates visible first-page rows without moving focus or res
   refresh(6);
   await flush();
   assert.equal(requests.length, 4);
+});
+
+
+test('changing order during pagination restarts at the first match and ignores the old response', async () => {
+  const {requests, order, results, more, submit} = searchFixture();
+  submit('Alpha');
+  requests[0].resolve(Response.json({entries: [row(10, 'Alpha ten')], more: true}));
+  await flush();
+  more.onclick();
+  order.value = 'oldest';
+  order.handlers.get('change')();
+  assert.deepEqual(requests[2].query, {q: 'Alpha', order: 'oldest'});
+  requests[2].resolve(Response.json({entries: [row(2, 'Alpha two')], more: true}));
+  await flush();
+  requests[1].resolve(Response.json({entries: [row(8, 'Stale')], more: false}));
+  await flush();
+  assert.equal(results.children.length, 1);
+  more.onclick();
+  assert.deepEqual(requests[3].query, {q: 'Alpha', order: 'oldest', after: '2'});
+  requests[3].resolve(Response.json({entries: [row(7, 'Alpha seven')], more: false}));
+  await flush();
+  assert.equal(results.children.length, 2);
+  assert.equal(more.hidden, true);
 });

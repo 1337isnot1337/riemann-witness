@@ -24,11 +24,14 @@ before(async()=>{
       });
     }});
   db=await mf.getD1Database('DB');
-  const sql=await readFile('migrations/0001_registry.sql','utf8');
-  for(const statement of sql.trim().split(/;\s*\n(?=CREATE |INSERT )/))await db.prepare(statement).run();
+  for(const path of ['0001_registry.sql','0002_certificate_issuance.sql','0003_registry_visibility_totals.sql']){
+    const sql=await readFile('migrations/'+path,'utf8');
+    for(const statement of sql.trim().split(/;\s*\n(?=ALTER |CREATE |DROP |INSERT |UPDATE )/))await db.prepare(statement).run();
+  }
 });
 after(async()=>{await mf?.dispose();});
 async function req(path,init={}){return mf.dispatchFetch(origin+path,init);}
+const counts=async()=>await(await req('/api/count')).json();
 const auth=key=>({Authorization:'Bearer '+key});
 async function post(path,body,ip='192.0.2.1') {
   return req(path,{method:'POST',headers:{'Content-Type':'application/json','CF-Connecting-IP':ip},body:JSON.stringify(body)});
@@ -53,9 +56,13 @@ test('concurrent claims and racing retries get permanent unique sequential numbe
 });
 test('private entries and recovery credentials stay out of public routes; records can be restored, published, hidden and deleted',async()=>{
   const key=token(),email='private@example.com',phrase='my test recovery phrase',name='Eléna Private';
+  const startingCounts=await counts();
+  const addedPrivate={...startingCounts,total:startingCounts.total+1,private:startingCounts.private+1};
+  const addedPublic={...startingCounts,total:startingCounts.total+1,public:startingCounts.public+1};
   const input=entry(0,{key,name,email,phrase,message:'<script>private note</script>',listed:false});
   const r=await post('/api/register',input);assert.equal(r.status,200);
   const row=await r.json();assert.equal(row.name,name);assert.deepEqual(Object.keys(row).sort(),['created_at','id','listed','message','name']);
+  assert.deepEqual(await counts(),addedPrivate);
   const path='/w/'+String(row.id).padStart(6,'0'),management='/api/manage/'+row.id;
   for(const suffix of ['','/social.png','/portrait.png'])assert.equal((await req(path+suffix)).status,404);
   assert.equal((await req(management,{headers:auth(token())})).status,404);
@@ -67,12 +74,17 @@ test('private entries and recovery credentials stay out of public routes; record
   for(const privateValue of [email,phrase,key,recovered[0].key])assert.ok(!stored.includes(privateValue));
   async function visibility(v){return req(management,{method:'PATCH',headers:{...auth(recovered[0].key),'Content-Type':'application/json'},body:JSON.stringify({listed:v})});}
   assert.equal((await visibility(true)).status,200);
+  assert.deepEqual(await counts(),addedPublic);
+  assert.equal((await visibility(true)).status,200);
+  assert.deepEqual(await counts(),addedPublic);
   const matches=await (await req('/api/registry?q=Elena')).json();assert.equal(matches.entries[0].id,row.id);
   const html=await(await req(path)).text();assert.ok(html.includes(path+'/social.png'));assert.ok(html.includes('&lt;script&gt;'));assert.ok(!html.includes(email));
   for(const [type,w,h] of [['social',1200,630],['portrait',900,1200]]){const resp=await req(path+'/'+type+'.png');assert.equal(resp.headers.get('content-type'),'image/png');png(Buffer.from(await resp.arrayBuffer()),w,h);}
   assert.equal((await visibility(false)).status,200);assert.equal((await req(path+'/social.png')).status,404);
+  assert.deepEqual(await counts(),addedPrivate);
   assert.equal((await req(path+'/social.png',{headers:auth(key)})).status,200);
   assert.equal((await req(management,{method:'DELETE',headers:auth(key)})).status,200);assert.equal((await req(management,{headers:auth(key)})).status,404);
+  assert.deepEqual(await counts(),startingCounts);
   const latest=await(await post('/api/register',entry('after deletion'))).json();assert.ok(latest.id>row.id);
   assert.equal((await post('/api/recover',{challenge:'recover',email,phrase})).status,404);
 });
@@ -84,7 +96,9 @@ test('validation, moderation, CORS and network cap',async()=>{
   const row=await(await post('/api/register',entry('moderate'))).json();
   const path='/api/admin/'+row.id;
   assert.equal((await req(path,{method:'DELETE',headers:auth('invalid')})).status,404);
+  const beforeRemoval=await counts();
   assert.equal((await req(path,{method:'DELETE',headers:auth('test-admin')})).status,200);
+  assert.deepEqual(await counts(),{total:beforeRemoval.total-1,public:beforeRemoval.public-1,private:beforeRemoval.private});
   const block=[];for(let i=0;i<25;i++)block.push((await post('/api/register',entry(i),'203.0.113.9')).status);
   assert.equal(block[0],200);assert.equal(block.at(-1),429);
 });
@@ -105,6 +119,35 @@ test('indexed name-prefix pagination visits each public namesake once',async()=>
   const next=await(await req(prefix+'&before='+cursor.id+'&afterName='+encodeURIComponent(cursor.name))).json();
   assert.equal(next.more,false);assert.equal(next.entries.length,3);
   assert.equal(new Set([...first.entries,...next.entries].map(w=>w.id)).size,23);
+});
+test('explicit chronological order paginates public matches by witness number',async()=>{
+  const expected=[];
+  for(let i=0;i<23;i++){
+    const response=await post('/api/register',entry(i,{name:i%2?'Arc Able':'Árc Zulu'}),'198.51.100.'+(140+i));
+    assert.equal(response.status,200);
+    expected.push((await response.json()).id);
+  }
+  const hidden=await(await post('/api/register',entry(0,{name:'Arc Private',listed:false}),'198.51.100.164')).json();
+  for(const order of ['oldest','newest']){
+    const cursor=order==='oldest'?'after':'before', base='/api/registry?order='+order;
+    const sequence=order==='oldest'?expected:[...expected].reverse();
+    const first=await(await req(base+'&q=arc')).json();
+    assert.deepEqual(first.entries.map(w=>w.id),sequence.slice(0,20));
+    assert.equal(first.more,true);
+    const next=await(await req(base+'&q=arc&'+cursor+'='+first.entries.at(-1).id)).json();
+    assert.deepEqual(next.entries.map(w=>w.id),sequence.slice(20));
+    assert.equal(next.more,false);
+    const lookup=await(await req(base+'&q=%23'+sequence[0])).json();
+    assert.deepEqual(lookup.entries.map(w=>w.id),[sequence[0]]);
+    assert.deepEqual((await(await req(base+'&q='+hidden.id)).json()).entries,[]);
+    assert.deepEqual((await(await req(base+'&q='+sequence[0]+'&'+cursor+'='+sequence[0])).json()).entries,[]);
+    const unfiltered=await(await req(base)).json();
+    const unfilteredIds=unfiltered.entries.map(w=>w.id);
+    assert.deepEqual(unfilteredIds,[...unfilteredIds].sort((a,b)=>order==='oldest'?a-b:b-a));
+  }
+  for(const query of ['order=other','order=newest&after=1','order=oldest&before=1','order=oldest&after=0']){
+    assert.equal((await req('/api/registry?'+query)).status,400);
+  }
 });
 test('celebratory profanity is accepted and slur rejection spends neither a number nor a rate-limit hit',async()=>{
   const ip='198.51.100.120';

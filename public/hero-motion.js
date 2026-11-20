@@ -13,6 +13,8 @@ if(hero){
     hero.style.setProperty('--pitch',(-y*2.4).toFixed(2)+'deg');
     hero.style.setProperty('--chart-x',(x*5).toFixed(2)+'px');
     hero.style.setProperty('--chart-y',(y*3).toFixed(2)+'px');
+    hero.style.setProperty('--title-x',(-x*7).toFixed(2)+'px');
+    hero.style.setProperty('--title-y',(-y*4).toFixed(2)+'px');
   }
   function center(){
     cancelAnimationFrame(frame);x=0;y=0;paintPosition();

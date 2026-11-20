@@ -14,23 +14,38 @@ export function historyPage(){
     <h2>What does a witness number record?</h2><p>A number records when someone signed this independent time capsule. The badge carries two dates. November 20, 2026 marks the announcement. The UTC timestamp records the actual signature, even for someone who arrives later. Visitors choose whether their name and message appear in the public register.</p><div class="actions"><a class="button mint-btn" href="${SITE}#sign">Sign the register</a><a class="button subtle" href="${API}/registry">Browse public witnesses</a></div></main>`});
 }
 export async function archivePage(env,url){
-  const raw=url.searchParams.get('before');
-  const before=raw?Number(raw):0;
-  if(raw && (!/^\d+$/.test(raw)||!Number.isSafeInteger(before)||before<1))
+  const params=url.searchParams,order=params.get('order'),oldest=order==='oldest';
+  const cursorKey=oldest?'after':'before',raw=params.get(cursorKey),cursor=Number(raw||0);
+  if((order!==null && order!=='newest' && !oldest)
+     || params.get(oldest?'before':'after')
+     || (raw && (!/^\d+$/.test(raw)||!Number.isSafeInteger(cursor)||cursor<1)))
     throw new RequestError(404,'Archive page unavailable.');
-  const path=before?'/registry?before='+before:'/registry';
-  const query=new URLSearchParams();
-  if(before){
-    const newer=await env.DB.prepare('SELECT id FROM witnesses WHERE listed=1 AND id>=? LIMIT 1').bind(before).first();
-    if(!newer)throw new RequestError(404,'Archive page unavailable.');
-    query.set('before',before);
-  }
+  const sortedPath=oldest?'/registry?order=oldest':'/registry';
+  const cursorPath=id=>sortedPath+(oldest?'&':'?')+cursorKey+'='+id;
+  const path=cursor?cursorPath(cursor):sortedPath;
+  const query=new URLSearchParams({order:oldest?'oldest':'newest'});
+  if(cursor)query.set(cursorKey,cursor);
   const {entries,more}=await registry(env,query);
-  if(before && !entries.length)throw new RequestError(404,'Archive page unavailable.');
+  let previous;
+  if(cursor){
+    if(!entries.length)throw new RequestError(404,'Archive page unavailable.');
+    const seek=oldest?'id<? ORDER BY id DESC':'id>? ORDER BY id ASC';
+    const {results}=await env.DB.prepare('SELECT id FROM witnesses WHERE listed=1 AND '+seek+' LIMIT 21')
+      .bind(entries[0].id).all();
+    if(!results.length)throw new RequestError(404,'Archive page unavailable.');
+    previous=results[20]?.id;
+  }
   if(url.pathname+url.search!==path)return Response.redirect(url.origin+path,301);
-  const heading=before?'Witnesses before #'+serial(before):'The witness registry.';
+  const heading=cursor?'Witnesses '+cursorKey+' #'+serial(cursor):'The witness registry.';
   const list=entries.map(w=>`<li class="signature"><a href="/w/${serial(w.id)}"><span class="serial">#${serial(w.id)}</span><div><strong>${esc(w.name)}</strong>${w.message?'<small>'+esc(w.message)+'</small>':''}</div></a><time datetime="${esc(w.created_at)}">${esc(w.created_at.slice(0,10))}</time></li>`).join('');
-  return page(url.origin,{path,title:before?heading+' | I Was Here':'Riemann Hypothesis Witness Registry | I Was Here',description:'Browse public signatures from the Riemann Hypothesis time capsule, in registration order. Open a witness’s numbered badge and see when they signed.',body:`<main class="sub" id="main"><h1>${esc(heading)}</h1><p class="lede">Public signatures, newest first.</p><p><a href="${SITE}#registry">Search by name or number</a> · <a href="${SITE}#sign">Sign the register</a></p>${list?'<ol class="archive-list">'+list+'</ol>':'<p>The first public signature will appear here.</p>'}${before?'<p><a href="/registry">Newest signatures</a></p>':''}${more?'<p><a href="/registry?before='+entries.at(-1).id+'">Older signatures</a></p>':''}</main>`});
+  const sortLinks=`<nav aria-label="Signature order">
+    ${!oldest&&!cursor?'<span aria-current="page">Newest signatures</span>':'<a href="/registry">Newest signatures</a>'}
+    ${oldest&&!cursor?'<span aria-current="page">Oldest signatures</span>':'<a href="/registry?order=oldest">Oldest signatures</a>'}
+  </nav>`;
+  const pages=`${previous?'<a href="'+esc(cursorPath(previous))+'">'+(oldest?'Older signatures':'Newer signatures')+'</a>':''}
+    ${more?'<a href="'+esc(cursorPath(entries.at(-1).id))+'">'+(oldest?'Newer signatures':'Older signatures')+'</a>':''}`;
+  const title=(cursor?heading:oldest?'Oldest Riemann Hypothesis Witnesses':'Riemann Hypothesis Witness Registry')+' | I Was Here';
+  return page(url.origin,{path,title,description:'Browse public signatures from the Riemann Hypothesis time capsule, in registration order. Open a witness’s numbered badge and see when they signed.',body:`<main class="sub" id="main"><h1>${esc(heading)}</h1><p class="lede">Public signatures, ${oldest?'oldest':'newest'} first.</p><p><a href="${SITE}#registry">Search by name or number</a> · <a href="${SITE}#sign">Sign the register</a></p>${sortLinks}${list?'<ol class="archive-list">'+list+'</ol>':'<p>The first public signature will appear here.</p>'}${previous||more?'<nav aria-label="Registry pages">'+pages+'</nav>':''}</main>`});
 }
 
 const span=2000, prefix='/sitemap-witnesses-';

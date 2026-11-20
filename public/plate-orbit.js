@@ -248,6 +248,8 @@ function attachOrbit(stage) {
   canvas.className = 'plate-orbit';
   canvas.setAttribute('aria-hidden','true');
   stage.append(canvas);
+  const control = stage.closest('.plate').querySelector('.plate-turn');
+  const turn = control.querySelector('input');
   const notice = document.querySelector('[data-webgl-notice]');
   // Check the graph's own context even when animation is paused or below the fold.
   let gl;
@@ -267,7 +269,8 @@ function attachOrbit(stage) {
   const root = document.documentElement;
   const reduced = matchMedia('(prefers-reduced-motion: reduce)');
   let onScreen = !('IntersectionObserver' in window);
-  let failed = false, renderer, angle = 0, t = mesh.zeros[0];
+  let failed = false, renderer, degrees = 0, t = mesh.zeros[0];
+  let manual = false, paintPending = false, pointer = null, touch = null;
   let frame = 0, previous = null, cssWidth = 0, cssHeight = 0;
 
   function ready(value) {
@@ -275,43 +278,114 @@ function attachOrbit(stage) {
     stage.toggleAttribute('data-orbit-ready',value);
     stage.dispatchEvent(new Event('witness-orbit-change'));
   }
-  function enabled() {
-    return !failed && onScreen && !document.hidden && !reduced.matches && root.dataset.motion !== 'off';
+  function visible() {
+    return !failed && onScreen && !document.hidden;
+  }
+  function spinning() {
+    return !reduced.matches && root.dataset.motion !== 'off' && pointer === null && document.activeElement !== turn;
   }
   function sync() {
-    if (!enabled()) {
+    if (!visible() || !spinning()) previous = null;
+    if (failed || (reduced.matches && !manual)) ready(false);
+    if (visible() && (!renderer || spinning() || paintPending)) {
+      if (!frame) frame = requestAnimationFrame(tick);
+    } else {
       cancelAnimationFrame(frame);
       frame = 0;
-      previous = null;
-      if (failed || reduced.matches) ready(false);
-    } else if (!frame) frame = requestAnimationFrame(tick);
+    }
   }
   function tick(now) {
     frame = 0;
-    if (!enabled()) return;
-    if (previous !== null && now - previous < frameInterval - 0.5) return sync();
-    const elapsed = previous === null ? 0 : Math.min(now - previous,120);
-    previous = now;
+    if (!visible()) return;
     if (!cssWidth || !cssHeight) {
       cssWidth = stage.clientWidth;
       cssHeight = stage.clientHeight;
     }
     if (!cssWidth || !cssHeight) return;
     try {
-      renderer ??= createRenderer(canvas, gl);
-      if (!renderer) throw Error('WebGL unavailable');
-      angle = (angle + elapsed * 2 * Math.PI / period) % (2 * Math.PI);
-      paintLabels(renderer(angle,t,cssWidth,cssHeight));
-      ready(true);
+      if (!renderer) {
+        renderer = createRenderer(canvas, gl);
+        if (!renderer) throw Error('WebGL unavailable');
+        control.hidden = false;
+      }
+      const elapsed = previous === null ? 0 : now - previous;
+      const advance = spinning() && (previous === null || elapsed >= frameInterval - 0.5);
+      if (advance) {
+        previous = now;
+        degrees += Math.min(elapsed,120) * 360 / period;
+        if (degrees > 180) degrees -= 360;
+        turn.value = degrees;
+      }
+      if ((advance || paintPending) && (!reduced.matches || manual)) {
+        paintLabels(renderer(degrees * Math.PI / 180,t,cssWidth,cssHeight));
+        ready(true);
+      }
+      paintPending = false;
     } catch {
-      failed = true;
+      showFallback();
     }
     sync();
   }
+  function showFallback() {
+    failed = true;
+    pointer = null;
+    touch = null;
+    control.hidden = true;
+    if (notice) notice.hidden = false;
+  }
+  function finishTurn(event) {
+    if (event.pointerId !== pointer) return;
+    if (touch && !touch.horizontal && touch.value !== null && event.type === 'pointerup'
+        && Math.hypot(event.clientX - touch.x,event.clientY - touch.y) < 6) {
+      turn.value = touch.value;
+      applyTurn();
+    }
+    pointer = null;
+    touch = null;
+    sync();
+  }
+  function resize() {
+    paintPending ||= stage.hasAttribute('data-orbit-ready');
+    sync();
+  }
+  function applyTurn() {
+    degrees = turn.valueAsNumber;
+    manual = true;
+    paintPending = true;
+    sync();
+  }
+  turn.addEventListener('focus',sync);
+  turn.addEventListener('blur',sync);
+  turn.addEventListener('input',() => {
+    // A native range may jump on touch-down before the browser recognizes a page scroll.
+    if (touch && !touch.horizontal) {
+      touch.value = turn.valueAsNumber;
+      turn.value = degrees;
+    } else applyTurn();
+  });
+  turn.addEventListener('pointerdown',event => {
+    if (!event.isPrimary || event.button !== 0) return;
+    pointer = event.pointerId;
+    if (event.pointerType === 'touch') {
+      touch = {x:event.clientX, y:event.clientY, horizontal:false, value:null};
+    }
+    sync();
+  });
+  turn.addEventListener('pointermove',event => {
+    if (event.pointerId !== pointer) return;
+    event.stopPropagation();
+    if (touch && !touch.horizontal) {
+      const dx = Math.abs(event.clientX - touch.x);
+      touch.horizontal = dx >= 6 && dx > Math.abs(event.clientY - touch.y);
+    }
+  });
+  turn.addEventListener('lostpointercapture',finishTurn);
+  window.addEventListener('pointerup',finishTurn);
+  window.addEventListener('pointercancel',finishTurn);
   canvas.addEventListener('webglcontextlost',event => {
     event.preventDefault();
-    failed = true;
-    if (notice) notice.hidden = false;
+    paintPending ||= stage.hasAttribute('data-orbit-ready');
+    showFallback();
     sync();
   });
   canvas.addEventListener('webglcontextrestored',() => {
@@ -326,9 +400,9 @@ function attachOrbit(stage) {
   if ('ResizeObserver' in window) {
     new ResizeObserver(([{contentRect}]) => {
       ({width:cssWidth,height:cssHeight} = contentRect);
-      sync();
+      resize();
     }).observe(stage);
-  } else window.addEventListener('resize',() => {cssWidth = 0; cssHeight = 0; sync();});
+  } else window.addEventListener('resize',() => {cssWidth = 0; cssHeight = 0; resize();});
   if (!onScreen) {
     new IntersectionObserver(([entry]) => {
       onScreen = entry.intersectionRatio > 0;

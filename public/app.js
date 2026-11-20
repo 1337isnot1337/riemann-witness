@@ -98,41 +98,110 @@ if(register) {
     return ['Your witness number is ready. ',link('Open my badge',badge)];
   });
   const search=$('#search'),field=$('#q'),box=$('#entries'),more=$('#more'),plot=$('#signatures-plot');
+  const order=$('#registry-order'),archive=$('.registry-archive');
   const searchStatus=el('p',null,'status');searchStatus.setAttribute('role','status');
   box.removeAttribute('aria-live');box.before(searchStatus);
   const emptyRegister='The register is open. The first public signature will appear here.';
-  let page,version=0,seenTotal;
+  let page,version=0,seenCounts;
   async function live(){
-    try{const {total}=await request('/api/count');
+    try{const {total,public:listed,private:unlisted}=await request('/api/count');
       $('[data-count]').textContent=total.toLocaleString()+(total===1?' witness has signed':' witnesses have signed');
-      $('#registry-total').textContent=total.toLocaleString()+' signed in total';
-      const changed=seenTotal!==undefined && total!==seenTotal;
-      seenTotal=total;
+      if(Number.isSafeInteger(listed) && Number.isSafeInteger(unlisted)){
+        $('#registry-total').replaceChildren(el('strong',listed.toLocaleString()),' public',el('i','·'),el('strong',unlisted.toLocaleString()),' private');
+      }
+      const counts=total+'/'+listed;
+      const changed=seenCounts!==undefined && counts!==seenCounts;
+      seenCounts=counts;
       if(changed)refreshPublic();
     }catch{$('[data-count]').textContent='View the witness register';}
   }
   function signature(row){
     const line=el('div',null,'signature'),a=link('',api+'/w/'+n(row.id)),details=el('div'),name=el('strong',row.name);
     details.append(name);if(row.message)details.append(el('small',row.message));
-    a.append(el('span','#'+n(row.id),'serial'),details);const time=el('time',row.created_at.slice(0,10));time.dateTime=row.created_at;time.title=row.created_at;
+    a.append(el('span','#'+n(row.id),'serial'),details);
+    const time=el('time',row.created_at.slice(0,10)+' · '+row.created_at.slice(11,16)+' UTC');time.dateTime=row.created_at;time.title=row.created_at;
     line.append(a,time);return {row,line};
   }
-  function updatePlot(rows){
-    const times=rows.map(row=>Date.parse(row.created_at)).filter(Number.isFinite);
-    plot.hidden=!times.length;
-    if(!times.length)return;
-    const start=Math.min(...times),end=Math.max(...times);
-    $('#constellation').replaceChildren(...times.map((stamp,i)=>{
-      const dot=el('i');dot.style.left=(end===start?50:(stamp-start)*100/(end-start))+'%';
-      dot.style.top=(4+i%3*7)+'px';return dot;}));
-    const label=t=>new Date(t).toISOString().slice(0,16).replace('T',' ');
-    $('#first-signature').textContent=label(start);
-    $('#last-signature').textContent=end===start?'':label(end);
+  const plotTrack=$('#signature-plot-track'),plotRange=$('#signature-plot-range'),plotMarks=$('#signature-plot-marks');
+  const plotGuide=el('span',null,'signature-plot-guide'),plotName=$('#signature-plot-name');
+  const plotNumber=$('#signature-plot-number'),plotWhen=$('#signature-plot-when');
+  const plotEarlier=$('#signature-plot-earlier'),plotLater=$('#signature-plot-later');
+  let points=[],selectedPoint=-1;
+  const utcLabel=stamp=>new Date(stamp).toISOString().replace('T',' ').replace(/(?:\.000)?Z$/,'');
+
+  function selectPoint(index){
+    if(index===selectedPoint || !points[index])return;
+    points[selectedPoint]?.mark.removeAttribute('data-selected');
+    selectedPoint=index;
+    const {row,stamp,x,mark}=points[index];
+    const number='#'+n(row.id),when=utcLabel(stamp);
+    mark.setAttribute('data-selected','');
+    plotGuide.style.left=x*100+'%';
+    plotName.textContent=row.name;
+    plotName.href=api+'/w/'+n(row.id);
+    plotNumber.textContent=number;
+    plotWhen.dateTime=new Date(stamp).toISOString();
+    plotWhen.textContent=when+' UTC';
+    plotRange.value=String(index+1);
+    plotRange.setAttribute('aria-valuetext',row.name+', witness '+number+', '+when+' UTC');
+    plotEarlier.disabled=index===0;
+    plotLater.disabled=index===points.length-1;
   }
-  function updatePage(q,records,hasMore,paginated){
+
+  function inspectPlot(event){
+    const {left,top,width,height}=plotMarks.getBoundingClientRect();
+    let nearest=0,distance=Infinity;
+    for(let index=0;index<points.length;index++){
+      const {x,y}=points[index];
+      const candidate=(left+x*width-event.clientX)**2+(top+y*height-event.clientY)**2;
+      if(candidate<distance){nearest=index;distance=candidate;}
+    }
+    selectPoint(nearest);
+  }
+
+  plotTrack.addEventListener('pointermove',event=>{
+    if(event.pointerType!=='touch')inspectPlot(event);
+  },{passive:true});
+  plotTrack.addEventListener('click',inspectPlot);
+  plotRange.addEventListener('input',()=>selectPoint(Number(plotRange.value)-1));
+  plotEarlier.addEventListener('click',()=>selectPoint(selectedPoint-1));
+  plotLater.addEventListener('click',()=>selectPoint(selectedPoint+1));
+
+  function updatePlot(rows){
+    const selectedId=points[selectedPoint]?.row.id;
+    const timed=rows.map(row=>({row,stamp:Date.parse(row.created_at)}))
+      .filter(({stamp})=>Number.isFinite(stamp))
+      .sort((a,b)=>a.stamp-b.stamp || a.row.id-b.row.id);
+    selectedPoint=-1;
+    plot.hidden=!timed.length;
+    if(!timed.length){points=[];plotMarks.replaceChildren();return;}
+
+    const count=timed.length,start=timed[0].stamp,end=timed.at(-1).stamp;
+    points=timed.map(({row,stamp},index)=>{
+      const x=end===start ? .5 : (stamp-start)/(end-start);
+      const y=count===1 ? .5 : 1-index/(count-1);
+      const mark=el('span',null,'signature-plot-mark');
+      mark.style.left=x*100+'%';
+      mark.style.top=y*100+'%';
+      return {row,stamp,x,y,mark};
+    });
+    plotMarks.replaceChildren(plotGuide,...points.map(({mark})=>mark));
+    plotRange.max=String(count);
+    $('#signature-plot-count').textContent=count.toLocaleString();
+    $('#signature-plot-first-count').hidden=count===1;
+    const first=$('#first-signature'),last=$('#last-signature');
+    first.dateTime=new Date(start).toISOString();
+    first.textContent=utcLabel(start);
+    last.dateTime=new Date(end).toISOString();
+    last.textContent=end===start?'':utcLabel(end);
+    const retained=points.findIndex(({row})=>row.id===selectedId);
+    selectPoint(retained<0?count-1:retained);
+  }
+  function updatePage(q,sort,records,hasMore,paginated){
     const last=records.at(-1)?.row;
-    page={q,records,last,more:Boolean(hasMore && last),paginated};
+    page={q,sort,records,last,more:Boolean(hasMore && last),paginated};
     more.hidden=!page.more;
+    archive.href=api+'/registry'+(sort==='oldest'?'?order=oldest':'');
   }
   function publicPageVisible(){
     if(!page || page.q || page.paginated || field.value.trim() || more.disabled || document.hidden)return false;
@@ -143,7 +212,7 @@ if(register) {
     if(!publicPageVisible())return;
     const current=page,run=version;
     try{
-      const data=await request('/api/registry?q=');
+      const data=await request('/api/registry?q=&order='+current.sort);
       if(run!==version || page!==current || !publicPageVisible())return;
       const old=new Map(current.records.map(record=>[record.row.id,record]));
       const records=data.entries.map(row=>{
@@ -159,13 +228,13 @@ if(register) {
       for(const {line} of current.records)if(!retained.has(line))line.remove();
       const coveredSince=current.more?current.last.id:0;
       records.forEach(({row,line},i)=>{
-        if(!old.has(row.id) && row.id>coveredSince){
+        if(current.sort==='newest' && !old.has(row.id) && row.id>coveredSince){
           line.classList.add('just-added');
           setTimeout(()=>line.classList.remove('just-added'),1500);
         }
         if(box.children[i]!==line)box.insertBefore(line,box.children[i]||null);
       });
-      updatePage('',records,hasMore,false);
+      updatePage('',current.sort,records,hasMore,false);
       updatePlot(data.entries);
       if(!records.length)searchStatus.textContent=emptyRegister;
       else if(searchStatus.textContent===emptyRegister)searchStatus.textContent='';
@@ -173,31 +242,33 @@ if(register) {
   }
   async function entries(append=false) {
     if(append && (!page?.more || more.disabled))return;
-    const run=++version,q=append?page.q:field.value.trim();
+    const run=++version,q=append?page.q:field.value.trim(),sort=append?page.sort:order.value;
     more.disabled=true;
     box.setAttribute('aria-busy','true');
     searchStatus.textContent=append?'Loading more signatures…':page?'Loading signatures…':'';
-    const params=new URLSearchParams({q});
-    if(append){params.set('before',page.last.id);if(q)params.set('afterName',page.last.name);}
+    const params=new URLSearchParams({q,order:sort});
+    if(append)params.set(sort==='oldest'?'after':'before',page.last.id);
     try{const data=await request('/api/registry?'+params);
       if(run!==version)return;
       if(!Array.isArray(data.entries))throw new Error('Could not read the signatures. Please try again.');
       const records=data.entries.map(signature),lines=records.map(({line})=>line);
       if(append)box.append(...lines);else box.replaceChildren(...lines);
-      if(q)plot.hidden=true;
-      if(!q && !append)updatePlot(data.entries);
-      updatePage(q,records,data.more,append);
+      const displayed=append?page.records.concat(records):records;
+      updatePage(q,sort,displayed,data.more,append);
+      updatePlot(displayed.map(record=>record.row));
       const count=data.entries.length, label=count===1?'signature':'signatures';
       if(!count && !append)searchStatus.textContent=q?'No matching public signatures.':emptyRegister;
       else searchStatus.textContent=append?count+' more '+label+' loaded.':q?count+' '+label+' found.':'';
     }catch(err){
       if(run!==version)return;
       if(!page)box.replaceChildren();
+      else order.value=page.sort;
       searchStatus.textContent=err.message+(page?' Previous results are still shown.':'');
     }
     finally{if(run===version){more.disabled=false;box.setAttribute('aria-busy','false');}}
   }
   search.addEventListener('submit',e=>{e.preventDefault();entries();});
+  order.addEventListener('change',()=>entries());
   more.onclick=()=>entries(true);
   if('IntersectionObserver' in window){const observer=new IntersectionObserver(([entry])=>{if(entry.isIntersecting){observer.disconnect();if(!version)entries();}},{rootMargin:'200px'});observer.observe($('#registry'));}else entries();
   live();setInterval(()=>{if(!document.hidden)live();},90000);

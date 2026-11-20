@@ -22,9 +22,9 @@ async function registry(t,bindings={}) {
   });
   t.after(()=>mf.dispose());
   const db=await mf.getD1Database('DB');
-  for(const path of ['migrations/0001_registry.sql','migrations/0002_certificate_issuance.sql']){
+  for(const path of ['migrations/0001_registry.sql','migrations/0002_certificate_issuance.sql','migrations/0003_registry_visibility_totals.sql']){
     const sql=await readFile(path,'utf8');
-    for(const statement of sql.trim().split(/;\s*\n(?=CREATE |INSERT )/))await db.prepare(statement).run();
+    for(const statement of sql.trim().split(/;\s*\n(?=ALTER |CREATE |DROP |INSERT |UPDATE )/))await db.prepare(statement).run();
   }
   const post=(path,body)=>mf.dispatchFetch(origin+path,{
     method:'POST',headers:{'Content-Type':'application/json','CF-Connecting-IP':'192.0.2.31'},body:JSON.stringify(body)
@@ -69,19 +69,21 @@ test('racing retries share the last network slot and issue exactly one certifica
   assert.equal(await db.prepare('SELECT SUM(certificates) AS total FROM certificate_issuance_daily').first('total'),24);
 });
 
-test('a failed quota write rolls back the number and both issuance counters',async t=>{
+test('a failed quota write rolls back the number and registry counters',async t=>{
   const {db,post,hits}=await registry(t);
   await db.prepare("CREATE TRIGGER fixture_quota_failure BEFORE INSERT ON limits BEGIN SELECT RAISE(ABORT,'fixture quota failure'); END").run();
-  const input=entry();
+  const input=entry({listed:true});
   assert.equal((await post('/api/register',input)).status,500);
   assert.deepEqual(await hits(),[]);
   assert.equal(await db.prepare('SELECT participants FROM totals WHERE id=1').first('participants'),0);
+  assert.equal(await db.prepare('SELECT public_participants FROM totals WHERE id=1').first('public_participants'),0);
   assert.equal(await db.prepare('SELECT COUNT(*) AS days FROM certificate_issuance_daily').first('days'),0);
 
   await db.prepare('DROP TRIGGER fixture_quota_failure').run();
   const retry=await post('/api/register',input);
   assert.equal(retry.status,200);
   assert.equal((await retry.json()).id,1);
+  assert.equal(await db.prepare('SELECT public_participants FROM totals WHERE id=1').first('public_participants'),1);
   assert.deepEqual(await hits(),[1]);
 });
 

@@ -114,22 +114,37 @@ export async function manage(env,req,id,key,body) {
 }
 export async function registry(env,params) {
   const q=cleaned(params.get('q')).slice(0,64);
-  const before=Number(params.get('before')||Number.MAX_SAFE_INTEGER);
-  if (!Number.isSafeInteger(before) || before<1) fail(400,'Invalid page.');
-  let sql='SELECT '+fields+' FROM witnesses WHERE listed=1', order='id DESC';
+  const sort=params.get('order'), oldest=sort==='oldest';
+  if (sort!==null && !oldest && sort!=='newest') fail(400,'Invalid order.');
+  const before=params.get('before'), after=params.get('after');
+  const rawCursor=oldest?after:before;
+  const cursor=Number(rawCursor||(oldest?0:Number.MAX_SAFE_INTEGER));
+  if ((oldest?before:after) || !Number.isSafeInteger(cursor) || (rawCursor && cursor<1)) fail(400,'Invalid page.');
+  let sql='SELECT '+fields+' FROM witnesses WHERE listed=1', order=oldest?'id ASC':'id DESC';
   const args=[];
-  if (/^#?\d+$/.test(q)) {
-    sql+=' AND id=?';args.push(Number(q.replace('#',''))||0);
+  const number=/^#?\d+$/.test(q);
+  if (number) {
+    const id=Number(q.replace('#',''));
+    sql+=' AND id=?';args.push(Number.isSafeInteger(id)?id:0);
   } else if (q) {
     const prefix=keyName(q);sql+=' AND name_key>=? AND name_key<?';
-    args.push(prefix,prefix+'\u{10ffff}');order='name_key,id';
-    const cursor=params.get('afterName');
-    if (cursor!==null) {sql+=' AND (name_key,id)>(?,?)';args.push(keyName(cursor.slice(0,128)),before);}
-  } else {sql+=' AND id<?';args.push(before);}
+    args.push(prefix,prefix+'\u{10ffff}');
+    if (sort===null) {
+      order='name_key,id';
+      const name=params.get('afterName');
+      if (name!==null) {sql+=' AND (name_key,id)>(?,?)';args.push(keyName(name.slice(0,128)),cursor);}
+    }
+  }
+  if (rawCursor && (sort!==null || !q)) {
+    sql+=oldest?' AND id>?':' AND id<?';
+    args.push(cursor);
+  }
   const {results}=await env.DB.prepare(sql+' ORDER BY '+order+' LIMIT 21').bind(...args).all();
   return {entries:results.slice(0,20),more:results.length>20};
 }
-export async function count(env) { return (await env.DB.prepare('SELECT participants AS total FROM totals WHERE id=1').first()).total; }
+export async function count(env) {
+  return env.DB.prepare('SELECT participants AS total, public_participants AS public, participants-public_participants AS private FROM totals WHERE id=1').first();
+}
 export async function moderate(env,req,id,noteOnly=false) {
   if (!Number.isSafeInteger(id) || id<1 || !env.ADMIN_TOKEN || req.headers.get('Authorization')!=='Bearer '+env.ADMIN_TOKEN) fail(404,'Entry unavailable.');
   const statement=noteOnly ? "UPDATE witnesses SET message='[note removed]' WHERE id=?" : 'DELETE FROM witnesses WHERE id=?';

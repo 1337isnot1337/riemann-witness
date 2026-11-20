@@ -2,6 +2,7 @@ import {badgePng} from './badge.js';
 import {RequestError, register,recover,registry,count,manage,moderate,getWitness,serial} from './data.js';
 import {home,page,utility,witnessPage,esc} from './pages.js';
 import {archivePage,historyPage,witnessSitemap} from './discovery.js';
+import {aboutPage} from './about.js';
 import holding from '../holding/index.html';
 import {API,SITE,REGISTRY_OPEN} from './config.js';
 const json = data => Response.json(data,{headers:{'Cache-Control':'no-store'}});
@@ -38,7 +39,7 @@ async function route(req,env,ctx,url) {
   if(path==='/api/count'&&read){
     const cache=globalThis.caches?.default,key=origin+'/api/count',hit=await cache?.match(key);
     if(hit)return hit;
-    const resp=Response.json({total:await count(env)},{headers:{'Cache-Control':'public, max-age=20'}});
+    const resp=Response.json(await count(env),{headers:{'Cache-Control':'public, max-age=20'}});
     if(cache && ctx)ctx.waitUntil(cache.put(key,resp.clone()));return resp;
   }
   if(path==='/api/registry'&&read)return json(await registry(env,url.searchParams));
@@ -66,6 +67,10 @@ async function route(req,env,ctx,url) {
   if(path==='/sitemap.xml'||path.startsWith('/sitemap-')||path.startsWith('/sitemaps/'))return witnessSitemap(env,origin,path);
   if(path==='/registry'||path==='/registry/')return archivePage(env,url);
   if(path==='/history/'||path==='/history')return url.hostname==='localhost'||url.hostname==='127.0.0.1'?historyPage():Response.redirect(SITE+'history/',301);
+  if(path==='/about/'||path==='/about'){
+    if(url.hostname==='localhost'||url.hostname==='127.0.0.1')return path==='/about/'?aboutPage():Response.redirect(origin+'/about/',301);
+    return Response.redirect(SITE+'about/',301);
+  }
   if(path.startsWith('/api/'))throw new RequestError(404,'Route unavailable.');
   if(env.ASSETS){const asset=await env.ASSETS.fetch(req);if(asset.status!==404)return asset;}
   throw new RequestError(404,'Entry unavailable.');
