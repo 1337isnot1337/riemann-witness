@@ -157,7 +157,8 @@ test('celebratory profanity is accepted and slur rejection spends neither a numb
   assert.equal(row.message,'FUCK YEAH');
   const limitsBefore=await db.prepare('SELECT * FROM limits ORDER BY bucket').all();
 
-  for(const message of ['nigger','n1gg3r','k.i.k.e','f a g g o t','spíc']){
+  for(const message of ['nigger','n1gg3r','k.i.k.e','f a g g o t','spíc',
+    'nigg4!','N!GG4!!!','n.i.g.g.4!','n!gg@!','f @ g g o t!']){
     const response=await post('/api/register',entry(0,{message}),ip);
     assert.equal(response.status,422);
     assert.match((await response.json()).error,/reword your note/i);
