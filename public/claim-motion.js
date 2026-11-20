@@ -5,7 +5,12 @@ if(claim){
   const reduced=matchMedia('(prefers-reduced-motion: reduce)');
   const hover=matchMedia('(any-hover: hover)');
   const glyphs='ζ∑π∫σ∞∂½';
-  const claimNotation='ζΓ∫π∂ ∞ρ∏λ ∮ℜση∇ ∑ξ θβ∀⊕√φμ';
+  const lookalikes={
+    A:'AΛΔÅĀÂÄ𝔸', C:'CℂÇĆČ⊂Ĉℭ', E:'E∃ƐĒĖÉℰ𝔼', H:'HℍĦĤḢḤΗℋ',
+    I:'IⅠĪÎİĨℐ𝕀', L:'Lℒ∟ŁĹĽḶ𝕃', M:'MΜℳṀḾṂ𝕄𝐌', N:'NℕŃÑŇṄŅ𝒩',
+    O:'OØΘ⊙ŌÔÖ𝕆', P:'PℙΡṖṔƤ℘𝐏', R:'RℝℛℜŔŘṘṚ', S:'S§ŚŠŜŞṠ𝕊',
+    T:'T⊤ΤŦŤṪȚ𝕋', U:'U∪ŪÛÜŮÚ𝕌', Y:'YΥ¥ŶŸẎÝ𝕐'
+  };
   // Glyph, position within the button, and travel from that position in pixels.
   const impressions=[
     ['ζ',12,17,-7,-25], ['∑',33,16,-3,-28], ['ℜ',58,17,4,-26],
@@ -15,7 +20,7 @@ if(claim){
   const animations=new Map();
   let cancelArrival=()=>{};
   let hoverPointer=null,keyboardFocused=false;
-  const enabled=()=>!reduced.matches && !document.hidden && document.hasFocus() && document.documentElement.dataset.motion!=='off';
+  const enabled=()=>!reduced.matches && !document.hidden && document.documentElement.dataset.motion!=='off';
 
   function decorate(button){
     const label=document.createElement('span'),readout=document.createElement('span');
@@ -33,10 +38,35 @@ if(claim){
     return {label,readout,restore};
   }
 
+  function flickerLetters(label,readout){
+    const line=document.createElement('span'),letters=[];
+    for(const letter of label.toUpperCase()){
+      if(!lookalikes[letter]){line.append(letter);continue;}
+      const cell=document.createElement('span'),choices=Array.from(lookalikes[letter]);
+      cell.className='claim-cell';
+      cell.textContent=letter;
+      let index=0;
+      const change=()=>{
+        index=(index+1+Math.floor(Math.random()*(choices.length-1)))%choices.length;
+        cell.dataset.glyph=choices[index];
+      };
+      change();
+      letters.push(change);
+      line.append(cell);
+    }
+    readout.append(line);
+    // Stagger the substitutions so there is always movement and the words stay legible.
+    let group=0;
+    return setInterval(()=>{
+      for(let i=group;i<letters.length;i+=3)letters[i]();
+      group=(group+1)%3;
+    },85);
+  }
+
   function projectClaim(preview){
     animations.get(claim)?.();
-    const {readout,restore}=decorate(claim);
-    readout.textContent=claimNotation;
+    const {label,readout,restore}=decorate(claim);
+    const flicker=flickerLetters(label.textContent,readout);
     if(preview)claim.classList.add('claim-preview');
     const plate=document.createElement('span');
     plate.className='claim-impressions';
@@ -53,6 +83,7 @@ if(claim){
     claim.append(plate);
     const timeout=preview?undefined:setTimeout(()=>{stop();syncPreview();},600);
     function stop(){
+      clearInterval(flicker);
       clearTimeout(timeout);
       restore();
     }
@@ -107,7 +138,7 @@ if(claim){
 
   function syncPreview(){
     const hovered=hoverPointer!==null && hover.matches && claim.matches(':hover');
-    const focused=keyboardFocused && claim.matches(':focus-visible');
+    const focused=keyboardFocused && document.hasFocus() && claim.matches(':focus-visible');
     if(enabled() && (hovered || focused)){
       if(!animations.has(claim))projectClaim(true);
     }else if(claim.classList.contains('claim-preview'))animations.get(claim)?.();
@@ -145,15 +176,18 @@ if(claim){
     projectClaim(false);
     echoOnArrival();
   });
-  function syncMotion(){
-    if(enabled()){syncPreview();return;}
-    if(document.hidden || !document.hasFocus())hoverPointer=null;
+  function stopMotion(){
     cancelArrival();
     for(const stop of animations.values())stop();
   }
+  function syncMotion(){
+    if(enabled()){syncPreview();return;}
+    if(document.hidden)hoverPointer=null;
+    stopMotion();
+  }
   window.addEventListener('witness-motion-change',syncMotion);
   window.addEventListener('focus',syncMotion);
-  window.addEventListener('blur',syncMotion);
+  window.addEventListener('blur',()=>{hoverPointer=null;stopMotion();});
   document.addEventListener('visibilitychange',syncMotion);
   reduced.addEventListener('change',syncMotion);
   hover.addEventListener('change',syncPreview);

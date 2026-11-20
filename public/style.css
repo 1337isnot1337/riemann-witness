@@ -188,10 +188,15 @@ html[data-motion=off] .motion-switch .play-icon{display:inline}
 }
 .hero .claim-decoding{--claim-duration:600ms;--claim-reach:1.18}
 .hero .claim-preview{--claim-duration:1480ms}
-.hero .claim-decode-label{pointer-events:none;animation:claim-lettering var(--claim-duration) ease-out both}
+.hero .claim-decode-label{pointer-events:none;opacity:0}
 .hero .claim-decode-readout{
-  font:400 1.17em/1 Georgia,"Times New Roman",serif;letter-spacing:.04em;word-spacing:.14em;
-  animation:claim-notation var(--claim-duration) ease-out both
+  font:inherit;letter-spacing:inherit;white-space:pre
+}
+/* The original letter sizes its slot while its lookalike changes in place. */
+.claim-cell{display:inline-block;position:relative;visibility:hidden}
+.claim-cell::after{
+  content:attr(data-glyph);position:absolute;left:50%;top:50%;translate:-50% -50%;
+  visibility:visible;letter-spacing:normal
 }
 .claim-impressions{position:absolute;inset:0;z-index:2;pointer-events:none}
 .claim-impressions span{
@@ -200,30 +205,11 @@ html[data-motion=off] .motion-switch .play-icon{display:inline}
   animation:claim-impression var(--claim-duration) cubic-bezier(.16,1,.3,1) both
 }
 .claim-impressions span:nth-child(3n + 2){color:var(--gold)}
-.hero .claim-preview .claim-decode-label{animation-name:claim-loop-lettering}
-.hero .claim-preview .claim-decode-readout{animation-name:claim-loop-notation}
-.hero .claim-preview .claim-impressions span{animation-name:claim-loop-impression}
-.hero .claim-preview :is(.claim-decode-label,.claim-decode-readout,.claim-impressions span){animation-iteration-count:infinite}
-@keyframes claim-lettering{
-  0%,65%,100%{opacity:1}
-  7%,52%{opacity:0}
-}
-@keyframes claim-notation{
-  0%,65%,100%{opacity:0}
-  7%,52%{opacity:1}
-}
+.hero .claim-preview .claim-impressions span{animation-name:claim-loop-impression;animation-iteration-count:infinite}
 @keyframes claim-impression{
   from{opacity:0;transform:translate(-50%,-50%) scale(.72)}
   18%,46%{opacity:1}
   to{opacity:0;transform:translate(-50%,-50%) translate(calc(var(--claim-x) * var(--claim-reach)),calc(var(--claim-y) * var(--claim-reach)))}
-}
-@keyframes claim-loop-lettering{
-  0%,37%,100%{opacity:1}
-  5%,28%{opacity:0}
-}
-@keyframes claim-loop-notation{
-  0%,37%,100%{opacity:0}
-  5%,28%{opacity:1}
 }
 @keyframes claim-loop-impression{
   0%{opacity:0;transform:translate(-50%,-50%) scale(.72)}
@@ -249,7 +235,7 @@ html[data-motion=off] .motion-switch .play-icon{display:inline}
 }
 @media(prefers-reduced-motion:reduce){
   .hero a[href="#sign"]:active{box-shadow:inset 0 0 0 2px var(--ink)}
-  #register .claim-decode-label{opacity:1}
+  .hero .claim-decode-label,#register .claim-decode-label{opacity:1}
   .claim-decode-readout,.claim-impressions,#register .claim-decoding::after{display:none}
 }
 
