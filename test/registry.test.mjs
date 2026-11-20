@@ -78,3 +78,14 @@ test('Pages build uses project-relative assets and absolute social metadata',asy
   const html=await readFile('dist/pages/index.html','utf8');assert.match(html,/meta name="registry-api" content="https:\/\//);assert.match(html,/src="\.\/app.js"/);assert.match(html,/og:image" content="https:\/\/[^"]+\/specimen.png/);assert.match(html,/RIEMANN<br>HYPOTHESIS<br><em>SOLVED\./);
   png(await readFile('dist/pages/specimen.png'),1200,630);
 });
+
+test('indexed name-prefix pagination visits each public namesake once',async()=>{
+  for(let i=0;i<23;i++)await post('/api/register',entry(i,{name:'Amélie Fields'}),'198.51.100.'+(i+1));
+  await post('/api/register',entry(0,{name:'Amélie Private',listed:false}),'198.51.100.77');
+  const prefix='/api/registry?q=amelie', first=await(await req(prefix)).json();
+  assert.equal(first.entries.length,20);assert.equal(first.more,true);
+  const cursor=first.entries.at(-1);
+  const next=await(await req(prefix+'&before='+cursor.id+'&afterName='+encodeURIComponent(cursor.name))).json();
+  assert.equal(next.more,false);assert.equal(next.entries.length,3);
+  assert.equal(new Set([...first.entries,...next.entries].map(w=>w.id)).size,23);
+});

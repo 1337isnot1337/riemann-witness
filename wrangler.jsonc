@@ -5,6 +5,7 @@
   "compatibility_date":"2026-05-01",
   "workers_dev":true,
   "preview_urls":false,
+  "routes":[{"pattern":"w.riemannsolved.com","custom_domain":true}],
   "assets":{"directory":"public","binding":"ASSETS"},
   "d1_databases":[{"binding":"DB","database_name":"riemann-witness","database_id":"7572e80f-9182-4e1c-9c7a-5c0e57409d65","migrations_dir":"migrations"}],
   "build":{"command":"npm run build"}

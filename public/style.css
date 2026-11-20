@@ -4,3 +4,5 @@
 @media(prefers-reduced-motion:reduce){*,*::before,*::after{scroll-behavior:auto!important;animation:none!important}}
 
 @media(max-width:365px){.hero h1{font-size:14vw}}
+
+.signatures-plot{margin:24px 0;max-width:900px}.signatures-plot figcaption,.plot-times{display:flex;justify-content:space-between;font:12px/1.4 ui-monospace,monospace;color:var(--sage)}.signatures-plot .constellation{position:relative;height:28px;margin:8px 4px;padding:0}.constellation i{position:absolute;width:5px;height:5px}.plot-times time{white-space:nowrap}

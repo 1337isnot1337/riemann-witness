@@ -47,8 +47,19 @@ if(register) {
     try{const data=await request('/api/registry?'+params);
       if(run!==version)return;
       if(!append)box.replaceChildren();
-      if(!q && !append){$('#constellation').replaceChildren(...data.entries.map(()=>el('i')));
-        $('#constellation').title=data.entries.length+' most recent public signatures';}
+      if(!q && !append){
+        const times=data.entries.map(row=>Date.parse(row.created_at));
+        $('#signatures-plot').hidden=!times.length;
+        if(times.length){
+          const start=Math.min(...times),end=Math.max(...times);
+          $('#constellation').replaceChildren(...times.map((stamp,i)=>{
+            const dot=el('i');dot.style.left=(end===start?50:(stamp-start)*100/(end-start))+'%';
+            dot.style.top=(4+i%3*7)+'px';return dot;}));
+          const label=t=>new Date(t).toISOString().slice(0,16).replace('T',' ');
+          $('#first-signature').textContent=label(start);
+          $('#last-signature').textContent=end===start?'':label(end);
+        }
+      }
       for(const row of data.entries) {
         const line=el('div',null,'signature'),a=link('',api+'/w/'+n(row.id)),details=el('div'),name=el('strong',row.name);
         details.append(name);if(row.message)details.append(el('small',row.message));
@@ -69,6 +80,9 @@ async function copyText(value,button) {
   catch{const input=el('input');input.value=value;input.readOnly=true;button.after(input);input.select();}
 }
 document.querySelectorAll('[data-copy]').forEach(btn=>btn.onclick=()=>copyText(btn.dataset.copy,btn));
+if($('#recover')){
+  try{if(localStorage.getItem('riemann-owner'))$('#recover').before(link('Open my badge saved on this device','/manage','button subtle'));}catch{}
+}
 if($('#recover'))formTask($('#recover'),async data=>{
   const rows=await request('/api/recover',post(Object.fromEntries(data)));
   $('#matches').replaceChildren(...rows.map(row=>link('Open #'+n(row.id)+' · '+row.name,ownerUrl(row.id,row.key),'button subtle')));
