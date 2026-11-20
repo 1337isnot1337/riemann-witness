@@ -44,29 +44,19 @@ export function home(origin,launch=false) {
   <label class="check"><input name="listed" type="checkbox"> <span>Make my badge, name and note public. Search engines may show them.</span></label>
   <label class="trap" aria-hidden="true">Website<input name="website" tabindex="-1" autocomplete="off"></label>
   ${challenge(origin,'register')}<button class="button dark-btn">Claim my witness number</button></fieldset><p aria-live="polite" class="status"></p></form></div></section>
-  <section class="registry" id="registry"><div class="section-heading"><h2>The registry<span>.</span></h2><span class="reg-total" id="registry-total"></span></div>
+  <section class="registry" id="registry"><div class="section-heading"><h2>The registry<span>.</span></h2><div class="reg-total" id="registry-total" hidden><span><strong id="registry-public-count"></strong> public</span><i aria-hidden="true">·</i><button id="registry-private" type="button" aria-pressed="false" title="Signing times are private" disabled><strong id="registry-private-count"></strong> private</button></div></div>
   <figure class="signatures-plot" id="signatures-plot" hidden>
-    <figcaption><span id="signature-plot-heading">Public signatures over time</span><span id="signature-plot-zone">UTC</span></figcaption>
-    <div class="signature-plot-grid" id="signature-plot-public">
-      <div class="signature-plot-counts" aria-hidden="true"><span id="signature-plot-count"></span><span id="signature-plot-first-count">1</span></div>
-      <div class="signature-plot-track" id="signature-plot-track">
-        <div class="signature-plot-marks" id="signature-plot-marks" aria-hidden="true"></div>
-        <input type="range" id="signature-plot-range" min="1" max="1" value="1" aria-label="Explore public signatures by time" aria-describedby="signature-plot-instructions">
-      </div>
+    <figcaption id="signature-plot-caption"><span id="signature-plot-heading"></span><span id="signature-plot-zone">UTC</span></figcaption>
+    <div class="signature-plot-track" id="signature-plot-track">
+      <div class="signature-plot-marks" id="signature-plot-marks" aria-hidden="true"></div>
       <div class="signature-plot-times"><time id="first-signature"></time><time id="last-signature"></time></div>
-    </div>
-    <div class="signature-private-lane" id="signature-private-lane" hidden>
-      <button class="signature-plot-private" id="signature-plot-private" type="button" aria-pressed="false" aria-describedby="signature-private-help">
-        Private <span class="signature-private-marks" id="signature-private-marks" aria-hidden="true"></span><span id="signature-private-grouping" aria-hidden="true" hidden></span>
-      </button>
-      <p class="signature-private-help" id="signature-private-help">Signing times are private.</p>
+      <input type="range" id="signature-plot-range" min="1" max="1" value="1" aria-label="Explore public signing times">
     </div>
     <div class="signature-plot-detail">
-      <div class="signature-plot-choice" id="signature-plot-choice"><a id="signature-plot-name"></a><span id="signature-plot-number"></span><time id="signature-plot-when"></time></div>
+      <div class="signature-plot-choice" id="signature-plot-choice"><a id="signature-plot-name"><span id="signature-plot-person"></span> <span class="serial" id="signature-plot-number"></span></a><time id="signature-plot-when"></time></div>
       <span class="signature-private-detail" id="signature-private-detail" hidden>Private</span>
-      <div class="signature-plot-steps" id="signature-plot-steps"><button type="button" id="signature-plot-earlier">Earlier</button><button type="button" id="signature-plot-later">Later</button></div>
+      <div class="signature-plot-steps" id="signature-plot-steps"><button type="button" id="signature-plot-earlier" aria-label="Earlier signature"><svg aria-hidden="true" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.25"><path d="m10 3-5 5 5 5"/></svg></button><button type="button" id="signature-plot-later" aria-label="Later signature"><svg aria-hidden="true" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.25"><path d="m6 3 5 5-5 5"/></svg></button></div>
     </div>
-    <p class="signature-plot-instructions" id="signature-plot-instructions">Choose a mark or use the arrow keys to explore the public signatures shown.</p>
   </figure>
   <div class="registry-toolbar">
     <form class="search" id="search" role="search"><input id="q" type="search" aria-label="Find a witness by name or number" placeholder="Name or witness number" maxlength="64"><button aria-label="Search public witnesses"><svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.65"><circle cx="10" cy="10" r="6.5"/><path d="m15 15 5.5 5.5"/></svg></button></form>

@@ -99,63 +99,69 @@ if(register) {
   });
   const search=$('#search'),field=$('#q'),box=$('#entries'),more=$('#more'),plot=$('#signatures-plot');
   const order=$('#registry-order'),archive=$('.registry-archive');
+  const totals=$('#registry-total'),publicTotal=$('#registry-public-count'),privateTotal=$('#registry-private-count');
   const searchStatus=el('p',null,'status');searchStatus.setAttribute('role','status');
   box.removeAttribute('aria-live');box.before(searchStatus);
   const emptyRegister='The register is open. The first public signature will appear here.';
-  let page,version=0,seenCounts,privateCount=0,requestedQuery='';
-  async function live(){
+  let page,version=0,privateCount=0,requestedQuery='';
+  async function live(revalidate=false){
     try{const {total,public:listed,private:unlisted}=await request('/api/count');
       $('[data-count]').textContent=total.toLocaleString()+(total===1?' witness has signed':' witnesses have signed');
       if(Number.isSafeInteger(listed) && Number.isSafeInteger(unlisted) && unlisted>=0){
-        $('#registry-total').replaceChildren(el('strong',listed.toLocaleString()),' public',el('i','·'),el('strong',unlisted.toLocaleString()),' private');
+        publicTotal.textContent=listed.toLocaleString();
+        privateTotal.textContent=unlisted.toLocaleString();
+        totals.hidden=false;
         privateCount=unlisted;
-        updatePrivatePlot();
+        syncPlot();
       }
-      const counts=total+'/'+listed;
-      const changed=seenCounts!==undefined && counts!==seenCounts;
-      seenCounts=counts;
-      if(changed)refreshPublic();
     }catch{$('[data-count]').textContent='View the witness register';}
+    if(revalidate)refreshPublic();
   }
   function signature(row){
     const line=el('div',null,'signature'),a=link('',api+'/w/'+n(row.id)),details=el('div'),name=el('strong',row.name);
-    details.append(name);if(row.message)details.append(el('small',row.message));
+    const note=el('small',row.message||'');note.hidden=!row.message;
+    details.append(name,note);
     a.append(el('span','#'+n(row.id),'serial'),details);
     const time=el('time',row.created_at.slice(0,10)+' · '+row.created_at.slice(11,16)+' UTC');time.dateTime=row.created_at;time.title=row.created_at;
-    line.append(a,time);return {row,line};
+    line.append(a,time);return {row,line,note};
   }
   const plotTrack=$('#signature-plot-track'),plotRange=$('#signature-plot-range'),plotMarks=$('#signature-plot-marks');
-  const plotGuide=el('span',null,'signature-plot-guide'),plotName=$('#signature-plot-name');
+  const plotName=$('#signature-plot-name'),plotPerson=$('#signature-plot-person');
   const plotNumber=$('#signature-plot-number'),plotWhen=$('#signature-plot-when');
   const plotEarlier=$('#signature-plot-earlier'),plotLater=$('#signature-plot-later');
   const plotFirst=$('#first-signature'),plotLast=$('#last-signature');
-  const plotHeading=$('#signature-plot-heading'),plotZone=$('#signature-plot-zone'),plotPublic=$('#signature-plot-public');
-  const plotChoice=$('#signature-plot-choice'),plotSteps=$('#signature-plot-steps'),plotInstructions=$('#signature-plot-instructions');
-  const privateLane=$('#signature-private-lane'),privateButton=$('#signature-plot-private'),privateMarks=$('#signature-private-marks');
-  const privateGrouping=$('#signature-private-grouping'),privateDetail=$('#signature-private-detail');
-  let points=[],selectedPoint=-1,privateSelected=false,shownPrivate=0;
-  const utcLabel=stamp=>new Date(stamp).toISOString().replace('T',' ').replace(/(?:\.000)?Z$/,'');
+  const plotHeading=$('#signature-plot-heading'),plotZone=$('#signature-plot-zone'),plotCaption=$('#signature-plot-caption');
+  const plotChoice=$('#signature-plot-choice'),plotSteps=$('#signature-plot-steps');
+  const privateButton=$('#registry-private'),privateDetail=$('#signature-private-detail');
+  const dayLabel=new Intl.DateTimeFormat('en-US',{month:'short',day:'numeric',timeZone:'UTC'});
+  const dateLabel=new Intl.DateTimeFormat('en-US',{month:'short',day:'numeric',year:'numeric',timeZone:'UTC'});
+  let points=[],selectedPoint=-1,privateSelected=false,sameDay=true,sameYear=true;
+
+  function clockLabel(stamp,seconds){
+    const iso=new Date(stamp).toISOString(),clock=iso.slice(11,seconds?19:16);
+    if(sameDay)return clock;
+    return (sameYear?dayLabel.format(stamp):iso.slice(0,10))+' · '+clock;
+  }
 
   function paintPoint(index){
     points[selectedPoint]?.mark.removeAttribute('data-selected');
     selectedPoint=index;
-    const {row,stamp,x}=points[index];
-    const number='#'+n(row.id),when=utcLabel(stamp);
-    plotGuide.style.left=x*100+'%';
-    plotName.textContent=row.name;
+    const {row,stamp}=points[index];
+    const number='#'+n(row.id),iso=new Date(stamp).toISOString();
     plotName.href=api+'/w/'+n(row.id);
+    plotPerson.textContent=row.name;
     plotNumber.textContent=number;
-    plotWhen.dateTime=new Date(stamp).toISOString();
-    plotWhen.textContent=when+' UTC';
+    plotWhen.dateTime=iso;
+    plotWhen.textContent=clockLabel(stamp,true)+' UTC';
     plotRange.value=String(index+1);
-    plotRange.setAttribute('aria-valuetext',row.name+', witness '+number+', '+when+' UTC');
+    plotRange.setAttribute('aria-valuetext',row.name+', witness '+number+', '+dateLabel.format(stamp)+' at '+iso.slice(11,19)+' UTC');
     plotEarlier.disabled=index===0;
     plotLater.disabled=index===points.length-1;
   }
   function showPrivate(selected){
     privateSelected=selected;
     privateButton.setAttribute('aria-pressed',String(selected));
-    plotChoice.hidden=plotSteps.hidden=plotGuide.hidden=selected;
+    plotChoice.hidden=selected;
     privateDetail.hidden=!selected;
     const mark=points[selectedPoint]?.mark;
     if(selected)mark?.removeAttribute('data-selected');
@@ -166,33 +172,23 @@ if(register) {
     paintPoint(index);
     showPrivate(false);
   }
-  function updatePrivatePlot(){
-    const count=page && !page.q && !requestedQuery ? privateCount : 0;
+  function syncPlot(){
+    const privateAvailable=privateCount>0 && !page?.q && !requestedQuery;
     const hasPublic=points.length>0;
-    const moveFocus=!count && document.activeElement===privateButton;
-    if(count!==shownPrivate){
-      shownPrivate=count;
-      const maxMarks=18,perMark=Math.ceil(count/maxMarks);
-      privateMarks.replaceChildren(...Array.from({length:Math.min(count,maxMarks)},()=>el('i')));
-      privateGrouping.hidden=perMark<=1;
-      privateGrouping.textContent=perMark<=1?'':'Up to '+perMark.toLocaleString()+' per mark';
-      privateButton.setAttribute('aria-label','Private signatures, '+count.toLocaleString()+' total');
-    }
-    privateLane.hidden=!count;
-    plotPublic.hidden=plotZone.hidden=plotInstructions.hidden=!hasPublic;
-    plotHeading.textContent=count?'Witness signatures':'Public signatures over time';
-    plotZone.textContent=count?'Public · UTC':'UTC';
-    plot.hidden=!hasPublic && !count;
-    showPrivate(Boolean(count && (!hasPublic || privateSelected)));
+    const moveFocus=!privateAvailable && document.activeElement===privateButton;
+    privateButton.disabled=!privateAvailable;
+    plotCaption.hidden=plotTrack.hidden=!hasPublic;
+    plotSteps.hidden=points.length<2;
+    showPrivate(privateAvailable && ((page && !hasPublic) || privateSelected));
+    plot.hidden=!hasPublic && !privateSelected;
     if(moveFocus)(hasPublic?plotRange:field).focus({preventScroll:true});
   }
 
   function inspectPlot(event){
-    const {left,top,width,height}=plotMarks.getBoundingClientRect();
-    let nearest=0,distance=Infinity;
+    const {left,width}=plotMarks.getBoundingClientRect();
+    let nearest=selectedPoint,distance=nearest<0?Infinity:Math.abs(left+points[nearest].x*width-event.clientX);
     for(let index=0;index<points.length;index++){
-      const {x,y}=points[index];
-      const candidate=(left+x*width-event.clientX)**2+(top+y*height-event.clientY)**2;
+      const candidate=Math.abs(left+points[index].x*width-event.clientX);
       if(candidate<distance){nearest=index;distance=candidate;}
     }
     selectPoint(nearest);
@@ -206,7 +202,10 @@ if(register) {
   plotRange.addEventListener('focus',()=>{if(privateSelected)selectPoint(selectedPoint);});
   plotEarlier.addEventListener('click',()=>selectPoint(selectedPoint-1));
   plotLater.addEventListener('click',()=>selectPoint(selectedPoint+1));
-  privateButton.addEventListener('click',()=>showPrivate(!privateSelected || !points.length));
+  privateButton.addEventListener('click',()=>{
+    showPrivate(!privateSelected || !points.length);
+    plot.hidden=false;
+  });
 
   function updatePlot(rows){
     const selectedId=points[selectedPoint]?.row.id;
@@ -218,37 +217,39 @@ if(register) {
       points=[];
       plotMarks.replaceChildren();
       plotName.removeAttribute('href');
-      plotName.textContent=plotNumber.textContent='';
+      plotPerson.textContent=plotNumber.textContent='';
       for(const time of [plotWhen,plotFirst,plotLast]){
         time.removeAttribute('datetime');
         time.textContent='';
       }
       plotRange.max=plotRange.value='1';
       plotRange.removeAttribute('aria-valuetext');
-      updatePrivatePlot();
+      syncPlot();
       return;
     }
 
     const count=timed.length,start=timed[0].stamp,end=timed.at(-1).stamp;
-    points=timed.map(({row,stamp},index)=>{
+    points=timed.map(({row,stamp})=>{
       const x=end===start ? .5 : (stamp-start)/(end-start);
-      const y=count===1 ? .5 : 1-index/(count-1);
       const mark=el('span',null,'signature-plot-mark');
       mark.style.left=x*100+'%';
-      mark.style.top=y*100+'%';
-      return {row,stamp,x,y,mark};
+      return {row,stamp,x,mark};
     });
-    plotMarks.replaceChildren(plotGuide,...points.map(({mark})=>mark));
+    plotMarks.replaceChildren(...points.map(({mark})=>mark));
     plotRange.max=String(count);
-    $('#signature-plot-count').textContent=count.toLocaleString();
-    $('#signature-plot-first-count').hidden=count===1;
-    plotFirst.dateTime=new Date(start).toISOString();
-    plotFirst.textContent=utcLabel(start);
-    plotLast.dateTime=new Date(end).toISOString();
-    plotLast.textContent=end===start?'':utcLabel(end);
+    const firstDate=new Date(start).toISOString(),lastDate=new Date(end).toISOString();
+    sameDay=firstDate.slice(0,10)===lastDate.slice(0,10);
+    sameYear=firstDate.slice(0,4)===lastDate.slice(0,4);
+    plotHeading.textContent=page.q?'Matching public signatures':page.sort==='oldest'?'Earliest public signatures':'Latest public signatures';
+    plotZone.textContent=sameDay?dateLabel.format(start)+' · UTC':'UTC';
+    plotFirst.dateTime=firstDate;
+    plotFirst.textContent=clockLabel(start,sameDay);
+    plotLast.dateTime=lastDate;
+    plotLast.textContent=clockLabel(end,sameDay);
+    plotLast.hidden=start===end;
     const retained=points.findIndex(({row})=>row.id===selectedId);
-    paintPoint(retained<0?count-1:retained);
-    updatePrivatePlot();
+    paintPoint(retained<0?(page.sort==='oldest'?0:count-1):retained);
+    syncPlot();
   }
   function updatePage(q,sort,records,hasMore,paginated){
     const last=records.at(-1)?.row;
@@ -270,7 +271,9 @@ if(register) {
       const old=new Map(current.records.map(record=>[record.row.id,record]));
       const records=data.entries.map(row=>{
         const previous=old.get(row.id);
-        if(previous && previous.row.name===row.name && previous.row.message===row.message && previous.row.created_at===row.created_at)return previous;
+        if(previous && previous.row.name===row.name && previous.row.created_at===row.created_at){
+          return previous.row.message===row.message?previous:{...previous,row};
+        }
         return signature(row);
       });
       const hasMore=Boolean(data.more && records.length);
@@ -280,8 +283,13 @@ if(register) {
       if((focused===more && !hasMore) || (box.contains(focused) && !records.some(({line})=>line.contains(focused))))return;
       for(const {line} of current.records)if(!retained.has(line))line.remove();
       const coveredSince=current.more?current.last.id:0;
-      records.forEach(({row,line},i)=>{
-        if(current.sort==='newest' && !old.has(row.id) && row.id>coveredSince){
+      records.forEach(({row,line,note},i)=>{
+        const previous=old.get(row.id);
+        if(previous?.line===line && previous.row.message!==row.message){
+          note.textContent=row.message||'';
+          note.hidden=!row.message;
+        }
+        if(current.sort==='newest' && !previous && row.id>coveredSince){
           line.classList.add('just-added');
           setTimeout(()=>line.classList.remove('just-added'),1500);
         }
@@ -297,7 +305,7 @@ if(register) {
     if(append && (!page?.more || more.disabled))return;
     const run=++version,q=append?page.q:field.value.trim(),sort=append?page.sort:order.value;
     requestedQuery=q;
-    if(q)updatePrivatePlot();
+    if(q)syncPlot();
     more.disabled=true;
     box.setAttribute('aria-busy','true');
     searchStatus.textContent=append?'Loading more signatures…':page?'Loading signatures…':'';
@@ -317,7 +325,7 @@ if(register) {
     }catch(err){
       if(run!==version)return;
       requestedQuery=page?.q || '';
-      updatePrivatePlot();
+      syncPlot();
       if(!page)box.replaceChildren();
       else order.value=page.sort;
       searchStatus.textContent=err.message+(page?' Previous results are still shown.':'');
@@ -328,7 +336,7 @@ if(register) {
   order.addEventListener('change',()=>entries());
   more.onclick=()=>entries(true);
   if('IntersectionObserver' in window){const observer=new IntersectionObserver(([entry])=>{if(entry.isIntersecting){observer.disconnect();if(!version)entries();}},{rootMargin:'200px'});observer.observe($('#registry'));}else entries();
-  live();setInterval(()=>{if(!document.hidden)live();},90000);
+  live();setInterval(()=>{if(!document.hidden)live(true);},90000);
 }
 async function copyText(value,button) {
   const existing=button.nextElementSibling?.matches('[data-copy-value]')?button.nextElementSibling:null;

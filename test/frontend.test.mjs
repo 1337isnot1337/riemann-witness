@@ -46,12 +46,11 @@ class Element {
 
 function searchFixture(initialCounts = {total: 1}) {
   const elements = new Map(['#register', '#search', '#q', '#entries', '#more', '#registry-order', '.registry-archive',
-    '#signatures-plot', '[data-count]', '#registry-total', '#signature-plot-track', '#signature-plot-marks',
-    '#signature-plot-range', '#signature-plot-name', '#signature-plot-number', '#signature-plot-when',
-    '#signature-plot-earlier', '#signature-plot-later', '#signature-plot-count', '#signature-plot-first-count',
-    '#signature-plot-heading', '#signature-plot-zone', '#signature-plot-public', '#signature-plot-choice',
-    '#signature-plot-steps', '#signature-plot-instructions', '#signature-private-lane', '#signature-plot-private',
-    '#signature-private-marks', '#signature-private-grouping', '#signature-private-detail',
+    '#signatures-plot', '[data-count]', '#registry-total', '#registry-public-count', '#registry-private-count',
+    '#registry-private', '#signature-plot-track', '#signature-plot-marks', '#signature-plot-range', '#signature-plot-name',
+    '#signature-plot-person', '#signature-plot-number', '#signature-plot-when', '#signature-plot-earlier', '#signature-plot-later',
+    '#signature-plot-heading', '#signature-plot-zone', '#signature-plot-caption', '#signature-plot-choice',
+    '#signature-plot-steps', '#signature-private-detail',
     '#first-signature', '#last-signature'].map(selector => [selector, new Element()]));
   elements.get('#registry-order').value = 'newest';
   elements.get('#register').selectors.set('.status', new Element());
@@ -149,8 +148,6 @@ test('a count change updates visible first-page rows without moving focus or res
   document.activeElement = existing.children[0];
   assert.equal(existing.classList.has('just-added'), false);
 
-  refresh(1);
-  await flush();
   field.value = 'Draft search';
   refresh(2);
   await flush();
@@ -214,21 +211,20 @@ test('changing order during pagination restarts at the first match and ignores t
   assert.equal(more.hidden, true);
 });
 
-test('private selection uses aggregate marks and can return to the public plot', async () => {
+test('the aggregate private count selects Private and can return to the public strip', async () => {
   const {requests, elements, submit, refresh} = searchFixture({total: 4, public: 1, private: 3});
-  const lane = elements.get('#signature-private-lane');
-  const privateButton = elements.get('#signature-plot-private');
+  const privateButton = elements.get('#registry-private');
+  const privateCount = elements.get('#registry-private-count');
   const privateDetail = elements.get('#signature-private-detail');
   const publicChoice = elements.get('#signature-plot-choice');
-  const privateMarks = elements.get('#signature-private-marks');
   const publicRange = elements.get('#signature-plot-range');
   const publicRow = row(3, 'Public witness');
 
   submit('');
   requests[0].resolve(Response.json({entries: [publicRow], more: false}));
   await flush();
-  assert.equal(lane.hidden, false);
-  assert.equal(privateMarks.children.length, 3);
+  assert.equal(privateButton.disabled, false);
+  assert.equal(privateCount.textContent, '3');
   assert.equal(privateDetail.hidden, true);
   privateButton.handlers.get('click')();
   assert.equal(privateButton.attributes.get('aria-pressed'), 'true');
@@ -237,7 +233,7 @@ test('private selection uses aggregate marks and can return to the public plot',
   assert.equal(elements.get('#signature-plot-steps').hidden, true);
   privateButton.handlers.get('click')();
   assert.equal(privateButton.attributes.get('aria-pressed'), 'false');
-  assert.equal(elements.get('#signature-plot-name').textContent, publicRow.name);
+  assert.equal(elements.get('#signature-plot-person').textContent, publicRow.name);
   privateButton.handlers.get('click')();
   publicRange.handlers.get('focus')();
   assert.equal(privateButton.attributes.get('aria-pressed'), 'false');
@@ -246,19 +242,19 @@ test('private selection uses aggregate marks and can return to the public plot',
 
   privateButton.handlers.get('click')();
   submit('3');
-  assert.equal(lane.hidden, true);
+  assert.equal(privateButton.disabled, true);
   assert.equal(privateDetail.hidden, true);
   refresh({total: 6, public: 1, private: 5});
   await flush();
-  assert.equal(lane.hidden, true);
+  assert.equal(privateButton.disabled, true);
   requests[1].resolve(Response.json({entries: [publicRow], more: false}));
   await flush();
-  assert.equal(lane.hidden, true);
+  assert.equal(privateButton.disabled, true);
   submit('');
   requests[2].resolve(Response.json({entries: [publicRow], more: false}));
   await flush();
-  assert.equal(lane.hidden, false);
-  assert.equal(privateMarks.children.length, 5);
+  assert.equal(privateButton.disabled, false);
+  assert.equal(privateCount.textContent, '5');
   assert.equal(publicChoice.hidden, false);
 
   refresh({total: 6, public: 0, private: 6});
@@ -267,36 +263,89 @@ test('private selection uses aggregate marks and can return to the public plot',
   await flush();
   assert.equal(privateDetail.hidden, false);
   assert.equal(elements.get('#signature-plot-name').href, undefined);
-  assert.equal(elements.get('#signature-plot-name').textContent, '');
+  assert.equal(elements.get('#signature-plot-person').textContent, '');
   assert.equal(elements.get('#signature-plot-number').textContent, '');
   assert.equal(elements.get('#signature-plot-when').attributes.has('datetime'), false);
   assert.equal(publicRange.attributes.has('aria-valuetext'), false);
 });
 
-test('an all-private register groups large totals without showing a public time axis', async () => {
+test('an all-private register shows the aggregate count and no time strip', async () => {
   const {requests, elements, submit, refresh} = searchFixture({total: 1, public: 0, private: 1});
   const plot = elements.get('#signatures-plot');
-  const privateMarks = elements.get('#signature-private-marks');
+  const privateCount = elements.get('#registry-private-count');
   submit('');
   requests[0].resolve(Response.json({entries: [], more: false}));
   await flush();
   assert.equal(plot.hidden, false);
-  assert.equal(privateMarks.children.length, 1);
+  assert.equal(privateCount.textContent, '1');
   assert.equal(elements.get('#signature-private-detail').hidden, false);
-  for (const selector of ['#signature-plot-public','#signature-plot-zone','#signature-plot-instructions']){
+  for (const selector of ['#signature-plot-track','#signature-plot-caption']){
     assert.equal(elements.get(selector).hidden, true);
   }
 
   refresh({total: 1_000_000, public: 0, private: 1_000_000});
   await flush();
-  assert.equal(privateMarks.children.length, 18);
-  assert.equal(elements.get('#signature-private-grouping').hidden, false);
+  assert.equal(privateCount.textContent, '1,000,000');
   requests[1].resolve(Response.json({entries: [], more: false}));
   await flush();
   refresh({total: 0, public: 0, private: 0});
   await flush();
   assert.equal(plot.hidden, true);
-  assert.equal(privateMarks.children.length, 0);
+  assert.equal(elements.get('#registry-private').disabled, true);
   requests[2].resolve(Response.json({entries: [], more: false}));
   await flush();
+});
+
+test('the signature strip spaces marks by UTC and keeps the selected witness and date legible', async () => {
+  const {requests, elements, submit} = searchFixture();
+  const signatures = [
+    {...row(4, 'Late'), created_at: '2026-11-21T00:10:00.000Z'},
+    {...row(3, 'Middle'), created_at: '2026-11-20T23:55:00.000Z'},
+    {...row(2, 'Early'), created_at: '2026-11-20T23:50:00.000Z'},
+  ];
+  submit('');
+  requests[0].resolve(Response.json({entries: signatures, more: false}));
+  await flush();
+  const track = elements.get('#signature-plot-marks');
+  assert.deepEqual(track.children.map(mark => mark.style.left), ['0%', '25%', '100%']);
+  assert.ok(track.children.every(mark => mark.style.top === undefined));
+  assert.equal(elements.get('#signature-plot-heading').textContent, 'Latest public signatures');
+  assert.equal(elements.get('#signature-plot-person').textContent, 'Late');
+  assert.equal(elements.get('#signature-plot-number').textContent, '#000004');
+  assert.equal(elements.get('#signature-plot-when').textContent, 'Nov 21 · 00:10:00 UTC');
+  elements.get('#signature-plot-earlier').handlers.get('click')();
+  assert.equal(elements.get('#signature-plot-person').textContent, 'Middle');
+  assert.equal(elements.get('#signature-plot-when').textContent, 'Nov 20 · 23:55:00 UTC');
+});
+
+test('an unchanged count poll revalidates moderated notes after the initial page', async () => {
+  const count = {total: 1, public: 1, private: 0};
+  const {requests, results, document, submit, refresh} = searchFixture(count);
+  const original = {...row(1, 'Witness'), message: 'Original note'};
+  submit('');
+  requests[0].resolve(Response.json({entries: [original], more: false}));
+  await flush();
+  assert.equal(requests.length, 1);
+  const oldLine = results.children[0];
+  document.activeElement = oldLine.children[0];
+  const note = line => line.children[0].children[1].children.at(-1).textContent;
+  assert.equal(note(oldLine), 'Original note');
+
+  const updated = {...original, message: '[note removed]'};
+  refresh(count);
+  await flush();
+  assert.deepEqual(requests[1].query, {q: '', order: 'newest'});
+  requests[1].resolve(Response.json({entries: [updated], more: false}));
+  await flush();
+  const newLine = results.children[0];
+  assert.equal(results.children.length, 1);
+  assert.equal(newLine, oldLine);
+  assert.equal(document.activeElement, newLine.children[0]);
+  assert.equal(note(newLine), '[note removed]');
+  assert.equal(newLine.classList.has('just-added'), false);
+  refresh(count);
+  await flush();
+  requests[2].resolve(Response.json({entries: [updated], more: false}));
+  await flush();
+  assert.equal(results.children[0], newLine);
 });
