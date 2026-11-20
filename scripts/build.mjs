@@ -9,7 +9,7 @@ const preview=process.argv.includes('--preview');
 const pages=preview?'dist/preview-pages':'dist/pages';
 const full=preview||REGISTRY_OPEN;
 const beacon=`<script defer src="https://static.cloudflareinsights.com/beacon.min.js" data-cf-beacon='{"token":"683cea5ed4a045c3abb56adbc6294bdd"}'></script>`;
-const assetHashes=new Map(await Promise.all(['app.js','style.css'].map(async file=>[
+const assetHashes=new Map(await Promise.all(['app.js','style.css','hero-motion.js','plate-motion.js','plate-orbit.js'].map(async file=>[
   file,createHash('sha256').update(await readFile('public/'+file)).digest('hex').slice(0,12)
 ])));
 const staticPolicy=[
@@ -18,7 +18,7 @@ const staticPolicy=[
   "frame-src https://challenges.cloudflare.com", "img-src 'self' data:", "object-src 'none'", "base-uri 'none'", "form-action 'none'"
 ].join('; ');
 function writePublicHtml(file,html){
-  const current=html.replace(/((?:src|href)="(?:\.\/|\/))(app\.js|style\.css)"/g,
+  const current=html.replace(/((?:src|href)="(?:\.\/|\/))(app\.js|style\.css|hero-motion\.js|plate-motion\.js|plate-orbit\.js)"/g,
     (_,prefix,asset)=>prefix+asset+'?v='+assetHashes.get(asset)+'"');
   const protectedHtml=current.replace('<head>','<head><meta http-equiv="Content-Security-Policy" content="'+staticPolicy+'">');
   return writeFile(pages+'/'+file,preview?protectedHtml:protectedHtml.replace('</body>',beacon+'</body>'));

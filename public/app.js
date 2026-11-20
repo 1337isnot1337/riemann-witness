@@ -97,17 +97,80 @@ if(register) {
     try{location.assign(badge);}catch{}
     return ['Your witness number is ready. ',link('Open my badge',badge)];
   });
+  const search=$('#search'),field=$('#q'),box=$('#entries'),more=$('#more'),plot=$('#signatures-plot');
+  const searchStatus=el('p',null,'status');searchStatus.setAttribute('role','status');
+  box.removeAttribute('aria-live');box.before(searchStatus);
+  const emptyRegister='The register is open. The first public signature will appear here.';
+  let page,version=0,seenTotal;
   async function live(){
     try{const {total}=await request('/api/count');
       $('[data-count]').textContent=total.toLocaleString()+(total===1?' witness has signed':' witnesses have signed');
       $('#registry-total').textContent=total.toLocaleString()+' signed in total';
+      const changed=seenTotal!==undefined && total!==seenTotal;
+      seenTotal=total;
+      if(changed)refreshPublic();
     }catch{$('[data-count]').textContent='View the witness register';}
   }
-  live();setInterval(()=>{if(!document.hidden)live();},90000);
-  const search=$('#search'),field=$('#q'),box=$('#entries'),more=$('#more'),plot=$('#signatures-plot');
-  const searchStatus=el('p',null,'status');searchStatus.setAttribute('role','status');
-  box.removeAttribute('aria-live');box.before(searchStatus);
-  let page,version=0;
+  function signature(row){
+    const line=el('div',null,'signature'),a=link('',api+'/w/'+n(row.id)),details=el('div'),name=el('strong',row.name);
+    details.append(name);if(row.message)details.append(el('small',row.message));
+    a.append(el('span','#'+n(row.id),'serial'),details);const time=el('time',row.created_at.slice(0,10));time.dateTime=row.created_at;time.title=row.created_at;
+    line.append(a,time);return {row,line};
+  }
+  function updatePlot(rows){
+    const times=rows.map(row=>Date.parse(row.created_at)).filter(Number.isFinite);
+    plot.hidden=!times.length;
+    if(!times.length)return;
+    const start=Math.min(...times),end=Math.max(...times);
+    $('#constellation').replaceChildren(...times.map((stamp,i)=>{
+      const dot=el('i');dot.style.left=(end===start?50:(stamp-start)*100/(end-start))+'%';
+      dot.style.top=(4+i%3*7)+'px';return dot;}));
+    const label=t=>new Date(t).toISOString().slice(0,16).replace('T',' ');
+    $('#first-signature').textContent=label(start);
+    $('#last-signature').textContent=end===start?'':label(end);
+  }
+  function updatePage(q,records,hasMore,paginated){
+    const last=records.at(-1)?.row;
+    page={q,records,last,more:Boolean(hasMore && last),paginated};
+    more.hidden=!page.more;
+  }
+  function publicPageVisible(){
+    if(!page || page.q || page.paginated || field.value.trim() || more.disabled || document.hidden)return false;
+    const rect=box.getBoundingClientRect();
+    return rect.bottom>0 && rect.top<window.innerHeight;
+  }
+  async function refreshPublic(){
+    if(!publicPageVisible())return;
+    const current=page,run=version;
+    try{
+      const data=await request('/api/registry?q=');
+      if(run!==version || page!==current || !publicPageVisible())return;
+      const old=new Map(current.records.map(record=>[record.row.id,record]));
+      const records=data.entries.map(row=>{
+        const previous=old.get(row.id);
+        if(previous && previous.row.name===row.name && previous.row.message===row.message && previous.row.created_at===row.created_at)return previous;
+        return signature(row);
+      });
+      const hasMore=Boolean(data.more && records.length);
+      if(records.length===current.records.length && records.every((record,i)=>record===current.records[i]) && hasMore===current.more)return;
+      const retained=new Set(records.map(({line})=>line));
+      const focused=document.activeElement;
+      if((focused===more && !hasMore) || (box.contains(focused) && !records.some(({line})=>line.contains(focused))))return;
+      for(const {line} of current.records)if(!retained.has(line))line.remove();
+      const coveredSince=current.more?current.last.id:0;
+      records.forEach(({row,line},i)=>{
+        if(!old.has(row.id) && row.id>coveredSince){
+          line.classList.add('just-added');
+          setTimeout(()=>line.classList.remove('just-added'),1500);
+        }
+        if(box.children[i]!==line)box.insertBefore(line,box.children[i]||null);
+      });
+      updatePage('',records,hasMore,false);
+      updatePlot(data.entries);
+      if(!records.length)searchStatus.textContent=emptyRegister;
+      else if(searchStatus.textContent===emptyRegister)searchStatus.textContent='';
+    }catch{} // Keep the current list available when a background request fails.
+  }
   async function entries(append=false) {
     if(append && (!page?.more || more.disabled))return;
     const run=++version,q=append?page.q:field.value.trim();
@@ -119,31 +182,13 @@ if(register) {
     try{const data=await request('/api/registry?'+params);
       if(run!==version)return;
       if(!Array.isArray(data.entries))throw new Error('Could not read the signatures. Please try again.');
-      const lines=data.entries.map(row=>{
-        const line=el('div',null,'signature'),a=link('',api+'/w/'+n(row.id)),details=el('div'),name=el('strong',row.name);
-        details.append(name);if(row.message)details.append(el('small',row.message));
-        a.append(el('span','#'+n(row.id),'serial'),details);const time=el('time',row.created_at.slice(0,10));time.dateTime=row.created_at;time.title=row.created_at;
-        line.append(a,time);return line;
-      });
+      const records=data.entries.map(signature),lines=records.map(({line})=>line);
       if(append)box.append(...lines);else box.replaceChildren(...lines);
       if(q)plot.hidden=true;
-      if(!q && !append){
-        const times=data.entries.map(row=>Date.parse(row.created_at)).filter(Number.isFinite);
-        plot.hidden=!times.length;
-        if(times.length){
-          const start=Math.min(...times),end=Math.max(...times);
-          $('#constellation').replaceChildren(...times.map((stamp,i)=>{
-            const dot=el('i');dot.style.left=(end===start?50:(stamp-start)*100/(end-start))+'%';
-            dot.style.top=(4+i%3*7)+'px';return dot;}));
-          const label=t=>new Date(t).toISOString().slice(0,16).replace('T',' ');
-          $('#first-signature').textContent=label(start);
-          $('#last-signature').textContent=end===start?'':label(end);
-        }
-      }
-      const last=data.entries.at(-1);
-      page={q,last,more:Boolean(data.more && last)};more.hidden=!page.more;
+      if(!q && !append)updatePlot(data.entries);
+      updatePage(q,records,data.more,append);
       const count=data.entries.length, label=count===1?'signature':'signatures';
-      if(!count && !append)searchStatus.textContent=q?'No matching public signatures.':'The register is open. The first public signature will appear here.';
+      if(!count && !append)searchStatus.textContent=q?'No matching public signatures.':emptyRegister;
       else searchStatus.textContent=append?count+' more '+label+' loaded.':q?count+' '+label+' found.':'';
     }catch(err){
       if(run!==version)return;
@@ -155,6 +200,7 @@ if(register) {
   search.addEventListener('submit',e=>{e.preventDefault();entries();});
   more.onclick=()=>entries(true);
   if('IntersectionObserver' in window){const observer=new IntersectionObserver(([entry])=>{if(entry.isIntersecting){observer.disconnect();if(!version)entries();}},{rootMargin:'200px'});observer.observe($('#registry'));}else entries();
+  live();setInterval(()=>{if(!document.hidden)live();},90000);
 }
 async function copyText(value,button) {
   const existing=button.nextElementSibling?.matches('[data-copy-value]')?button.nextElementSibling:null;
@@ -184,6 +230,18 @@ if($('#owner')) {
   let value=location.hash.slice(1);
   try{if(!value)value=localStorage.getItem('riemann-owner')||'';}catch{}
   const match=ownerFragment.exec(value);
+  let switchingOwner=false;
+  const newOwnerInFragment=()=>{
+    const next=location.hash.slice(1);
+    return next!==value && ownerFragment.test(next);
+  };
+  const leavingOwner=()=>switchingOwner || newOwnerInFragment();
+  window.addEventListener('hashchange',()=>{
+    if(switchingOwner || !newOwnerInFragment())return;
+    switchingOwner=true;
+    box.replaceChildren(el('p','Opening your private management link…'));
+    location.reload();
+  });
   if(!match)box.replaceChildren(link('Recover a badge','/recover','button mint-btn'));
   else {
     const [,id,key]=match,path='/w/'+n(id),priv='/api/manage/'+id;
@@ -200,7 +258,7 @@ if($('#owner')) {
     function action(label,fn,cls='button subtle'){
       const b=el('button',label,cls);b.type='button';
       b.onclick=async()=>{
-        if(b.disabled)return;
+        if(b.disabled || leavingOwner())return;
         b.disabled=true;status.textContent='';
         try{await fn(b);}catch(err){status.textContent=err.message;}
         finally{b.disabled=false;}
@@ -218,7 +276,7 @@ if($('#owner')) {
       preview.replaceChildren(previewStatus);
       try{
         const blob=await png('social');
-        if(deleted)return;
+        if(deleted || leavingOwner())return;
         landscape=URL.createObjectURL(blob);
         img.src=landscape;
         nativeFile=new File([blob],filename+'.png',{type:'image/png'});
@@ -227,7 +285,7 @@ if($('#owner')) {
         preview.replaceChildren(img);
         if(focus){img.tabIndex=-1;img.focus();}
       }catch(err){
-        if(deleted)return;
+        if(deleted || leavingOwner())return;
         previewStatus.textContent=err.message;
         preview.append(action('Retry badge image',()=>loadPreview(true)));
       }
@@ -256,7 +314,7 @@ if($('#owner')) {
         changing=true;
         try{
           await request(priv,{method:'PATCH',headers:{...headers,'Content-Type':'application/json'},body:JSON.stringify({listed})});
-          render({...w,listed},true);
+          if(!leavingOwner())render({...w,listed},true);
         }finally{changing=false;}
       }
       save=link('Download landscape PNG',landscape||'#');save.download=filename+'.png';save.hidden=!landscape;
@@ -272,6 +330,7 @@ if($('#owner')) {
         changing=true;
         try{
           await request(priv,{method:'DELETE',headers});
+          if(leavingOwner())return;
           deleted=true;
           try{if(localStorage.getItem('riemann-owner')===value)localStorage.removeItem('riemann-owner');}catch{}
           if(landscape)URL.revokeObjectURL(landscape);
@@ -292,6 +351,7 @@ if($('#owner')) {
       box.replaceChildren(status,backup());
       try{
         const w=await request(priv,{headers});
+        if(leavingOwner())return;
         if(w.id!==Number(id) || typeof w.name!=='string')throw new Error('Could not open this witness badge. Please try again.');
         try{
           localStorage.setItem('riemann-owner',value);
@@ -301,6 +361,7 @@ if($('#owner')) {
         render(w);
         loadPreview();
       }catch(err){
+        if(leavingOwner())return;
         status.textContent=err.message;
         const actions=el('div',null,'actions');
         actions.append(action('Try again',openOwner,'button mint-btn'),backup(),link('Recover a badge','/recover','button subtle'));

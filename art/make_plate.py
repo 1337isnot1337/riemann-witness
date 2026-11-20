@@ -5,9 +5,12 @@ Only Python's standard library is required. Run from any working directory.
 
 from __future__ import annotations
 
+import base64
 import cmath
+import json
 import math
 from pathlib import Path
+import struct
 
 OUT = Path(__file__).resolve().parents[1] / "public" / "art" / "critical-strip.svg"
 LOG = [math.log(k) for k in range(1, 33)]
@@ -139,5 +142,20 @@ def create():
     return "\n".join(parts)
 
 
+def orbit_mesh():
+    rows = 61
+    ts = sorted([T_MIN + (T_MAX - T_MIN) * i / 120 for i in range(121)] + list(ZERO))
+    heights = [
+        round(8192 * abs(zeta(complex(row / (rows - 1), t))))
+        for row in range(rows)
+        for t in ts
+    ]
+    packed = base64.b64encode(struct.pack(f"<{len(heights)}H", *heights)).decode("ascii")
+    return "export default " + json.dumps(
+        {"rows": rows, "ts": ts, "zeros": ZERO, "heights": packed}, separators=(",", ":")
+    ) + ";\n"
+
+
 if __name__ == "__main__":
     OUT.write_text(create() + "\n")
+    OUT.with_name("plate-mesh.js").write_text(orbit_mesh())
