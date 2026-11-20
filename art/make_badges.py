@@ -222,19 +222,25 @@ def write(name, data):
 
 def main():
     OUTPUT.mkdir(exist_ok=True)
-    cmap = TTFont(SERIF).getBestCmap()
+    cmap = TTFont(ITALIC).getBestCmap()
     ascii_chars = [chr(i) for i in range(32, 127)]
-    extra = ["·", "–", "—", "‘", "’", "“", "”"]
+    extra = ["\N{NO-BREAK SPACE}", "·", "‑", "–", "—", "‘", "’", "“", "”"]
+    letter_ranges = (range(0xA0, 0x530), range(0x1E00, 0x2000))
     letters = [
         chr(i)
-        for i in range(0xA0, 0x530)
+        for block in letter_ranges
+        for i in block
         if i in cmap
         and unicodedata.category(chr(i)).startswith("L")
         and any(
             s in unicodedata.name(chr(i), "") for s in ("LATIN", "GREEK", "CYRILLIC")
         )
     ]
-    write("names", atlas(ITALIC, 64, ascii_chars + extra + letters))
+    stressed = [
+        unicodedata.normalize("NFC", c + "\u0301")
+        for c in "АЕЁИОУЫЭЮЯІЇЄаеёиоуыэюяіїє"
+    ]
+    write("names", atlas(ITALIC, 64, ascii_chars + extra + letters + stressed))
     write("numbers", atlas(MONO, 60, ascii_chars))
     write("landscape", make_plate(False))
     write("portrait", make_plate(True))

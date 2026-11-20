@@ -89,6 +89,6 @@ export default {async fetch(req,env,ctx) {
   if(url.hostname.endsWith('.workers.dev'))out.headers.set('X-Robots-Tag','noindex, follow');
   else if(out.status>=400||url.pathname==='/manage'||url.pathname==='/recover')out.headers.set('X-Robots-Tag','noindex, nofollow');
   out.headers.set('Referrer-Policy','no-referrer');out.headers.set('X-Content-Type-Options','nosniff');out.headers.set('X-Frame-Options','DENY');
-  out.headers.set('Content-Security-Policy',"default-src 'self'; script-src 'self' https://challenges.cloudflare.com; frame-src https://challenges.cloudflare.com; connect-src 'self' https://challenges.cloudflare.com; img-src 'self' blob:; frame-ancestors 'none'; base-uri 'none'; form-action 'self'");
+  out.headers.set('Content-Security-Policy',"default-src 'self'; script-src 'self' https://challenges.cloudflare.com; frame-src https://challenges.cloudflare.com; connect-src 'self' https://challenges.cloudflare.com; img-src 'self' blob:; frame-ancestors 'none'; base-uri 'none'; form-action 'none'");
   return out;
 }};

@@ -1,6 +1,6 @@
 # Witness registry analytics
 
-Open **Web Analytics** in the Cloudflare account and select **riemannsolved.com** for the Visits and Page Views charts. The site uses Cloudflare's free manual JavaScript beacon on the GitHub Pages holding page and, after release, on the registry home and history pages. Preview builds and Worker-rendered pages, including recovery, management, and individual certificates, have no beacon. [Cloudflare Web Analytics](https://developers.cloudflare.com/web-analytics/about/)
+Open [Cloudflare Web Analytics](https://dash.cloudflare.com/?to=/:account/web-analytics) and select **riemannsolved.com** for the Visits and Page Views charts. The site uses Cloudflare's free manual JavaScript beacon on the GitHub Pages holding page and, after release, on the registry home, announcement link and history pages. Preview builds and Worker-rendered pages, including recovery, management, and individual certificates, have no beacon. [Cloudflare Web Analytics](https://developers.cloudflare.com/web-analytics/about/)
 
 ## Run the report
 

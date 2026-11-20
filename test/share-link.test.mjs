@@ -12,7 +12,7 @@ test('the announcement has its own large card and opens the canonical registrati
   }
   assert.match(html, /name="twitter:card" content="summary_large_image"/);
   assert.match(html, /<form id="register"/);
-  assert.match(html, /src="\/app.js"/);
+  assert.match(html, /src="\/app\.js\?v=[0-9a-f]{12}"/);
   assert.doesNotMatch(html, /(?:href|src)="\.\//);
   assert.doesNotMatch(await readFile('dist/pages/sitemap.xml', 'utf8'), /\/launch\//);
   const image = await readFile('public/registry-card.png');

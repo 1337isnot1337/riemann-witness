@@ -5,18 +5,18 @@ import names from '../art/generated/names.js';
 import numbers from '../art/generated/numbers.js';
 
 const encoder = new TextEncoder();
+const segmenter = new Intl.Segmenter('und', { granularity: 'grapheme' });
 const cache = new WeakMap();
 const prefixes = new WeakMap();
 
 export function nameSupported(name) {
   if (typeof name !== 'string') return false;
-  const characters = Array.from(name.normalize('NFC'));
-  return (
-    characters.length > 0 &&
-    characters.length <= 48 &&
-    name.trim().length > 0 &&
-    characters.every((character) => Object.hasOwn(names.g, character))
-  );
+  const normalized = name.normalize('NFC');
+  if (!normalized.trim() || Array.from(normalized).length > 48) return false;
+  for (const { segment } of segmenter.segment(normalized)) {
+    if (!Object.hasOwn(names.g, segment)) return false;
+  }
+  return true;
 }
 
 function bytes(base64) {
@@ -40,6 +40,23 @@ async function inflate(asset) {
   return result;
 }
 
+function pixelInk(alpha, start, pixel) {
+  const packed = alpha[start + (pixel >> 1)];
+  return pixel % 2 === 0 ? packed >> 4 : packed & 15;
+}
+
+function averagedInk(alpha, start, w, h, dx, dy, destW, destH) {
+  const left = Math.floor(dx * w / destW);
+  const right = Math.ceil((dx + 1) * w / destW);
+  const top = Math.floor(dy * h / destH);
+  const bottom = Math.ceil((dy + 1) * h / destH);
+  let ink = 0;
+  for (let sy = top; sy < bottom; sy++) {
+    for (let sx = left; sx < right; sx++) ink += pixelInk(alpha, start, sy * w + sx);
+  }
+  return Math.round(ink / ((right - left) * (bottom - top)));
+}
+
 function lettering(
   rows,
   width,
@@ -51,26 +68,29 @@ function lettering(
   maxWidth,
   maxScale,
 ) {
-  const letters = Array.from(
-    text,
-    (character) => face.g[character] || face.g['?'],
-  );
+  const inscription = face === names;
+  const characters = inscription
+    ? Array.from(segmenter.segment(text), ({ segment }) => segment)
+    : Array.from(text);
+  const letters = characters.map(character => face.g[character] || face.g['?']);
   const advance = letters.reduce((sum, glyph) => sum + glyph[5] / 16, 0);
   const scale = Math.min(maxScale, maxWidth / Math.max(advance + 4, 1));
+  const antialias = inscription && scale < 1;
   for (const [start, w, h, left, top, step] of letters) {
     const x0 = Math.round(x + left * scale);
     const y0 = Math.round(baseline + top * scale);
-    const destW = Math.round(w * scale),
-      destH = Math.round(h * scale);
+    // Preserve a thin mark when its height rounds below one pixel.
+    const destW = antialias && w ? Math.max(1, Math.round(w * scale)) : Math.round(w * scale);
+    const destH = antialias && h ? Math.max(1, Math.round(h * scale)) : Math.round(h * scale);
     for (let dy = 0; dy < destH; dy++) {
       const sy = Math.min(h - 1, Math.floor((dy + 0.5) / scale));
       let offset = (y0 + dy) * (width + 1) + x0 + 1;
       for (let dx = 0; dx < destW; dx++, offset++) {
         const sx = Math.min(w - 1, Math.floor((dx + 0.5) / scale));
-        const pixel = sy * w + sx;
-        const packed = alpha[start + (pixel >> 1)];
-        const ink = pixel % 2 === 0 ? packed >> 4 : packed & 15;
-        if (ink) rows[offset] = 104 + ink;
+        const ink = antialias
+          ? averagedInk(alpha, start, w, h, dx, dy, destW, destH)
+          : pixelInk(alpha, start, sy * w + sx);
+        if (ink) rows[offset] = Math.max(rows[offset], 104 + ink);
       }
     }
     x += (step * scale) / 16;

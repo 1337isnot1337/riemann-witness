@@ -18,13 +18,21 @@ const ownerKey = key => typeof key === 'string' && /^[a-f0-9]{64}$/.test(key);
 const cleaned = value => typeof value === 'string' ? value.trim().normalize('NFC') : '';
 const keyName = value => value.normalize('NFKD').replace(/\p{M}/gu,'').toLowerCase();
 const reserved = /^(?:(?:the)?(?:riemannregistry|iwashereregistry|admin(?:istrator)?|moderator|support|official|anthropic|claymathematicsinstitute|leventalpoge|bernhardriemann|terencetao))(?:official|admin|team|support)?$/;
-async function throttle(env, req, action, max) {
+const registrationLimit = 24;
+const rateLimitExceeded = () => fail(429, 'Too many attempts from this network. Try again next hour.');
+async function rateWindow(env, req, action) {
   const now = Math.floor(Date.now()/1000);
   const end = (Math.floor(now/3600)+1)*3600;
   const bucket = await mac(env, JSON.stringify([action, end, req.headers.get('cf-connecting-ip') || 'unknown']));
-  await env.DB.prepare('DELETE FROM limits WHERE expires < ?').bind(now).run();
-  const row = await env.DB.prepare('INSERT INTO limits(bucket,expires,hits) VALUES(?,?,1) ON CONFLICT(bucket) DO UPDATE SET hits=hits+1 WHERE hits < ? RETURNING hits').bind(bucket,end,max).first();
-  if (!row) fail(429, 'Too many attempts from this network. Try again next hour.');
+  return {bucket,end,now};
+}
+async function throttle(env, req, action, max) {
+  const {bucket,end,now} = await rateWindow(env,req,action);
+  const [,usage] = await env.DB.batch([
+    env.DB.prepare('DELETE FROM limits WHERE expires < ?').bind(now),
+    env.DB.prepare('INSERT INTO limits(bucket,expires,hits) VALUES(?,?,1) ON CONFLICT(bucket) DO UPDATE SET hits=hits+1 WHERE hits < ? RETURNING hits').bind(bucket,end,max)
+  ]);
+  if (!usage.results.length) rateLimitExceeded();
 }
 function recoveryInput(email, phrase) {
   email = cleaned(email).toLowerCase();
@@ -42,25 +50,42 @@ export async function register(env, req, body) {
   if (body.website || !nameSupported(name) || !name || [...name].length>48) fail(400,'Enter a name of up to 48 characters using Latin, Greek or Cyrillic letters and supported punctuation.');
   if (typeof body.listed !== 'boolean') fail(400,'Choose a visibility setting.');
   if (reserved.test(keyName(name).replace(/[^a-z0-9]/g,''))) fail(400,'This name is reserved. Choose a different name.');
-  if ([...message].length>160 || /[\p{Cc}\p{Cf}]/u.test(message)) fail(400,'Use a single line of up to 160 characters for your message.');
+  if ([...message].length>160 || /[\p{Cc}\p{Cf}\p{Zl}\p{Zp}]/u.test(message)) fail(400,'Use a single line of up to 160 characters for your message.');
   if (/(?:https?:|www\.)/i.test(message+' '+name)) fail(400,'Please leave links out of your entry.');
   if (noteNeedsRewording(message)) fail(422,'Please reword your note to remove identity-based slurs. Your entry has not been submitted.');
   const recovery = body.email || body.phrase ? await mac(env, 'recovery:'+recoveryInput(body.email,body.phrase)) : null;
   await verifyChallenge(env,req,body.challenge,'register');
-  await throttle(env,req,'register',24);
   const firstPass=typeof body.firstPass==='string' && /^[a-f0-9]{64}$/.test(body.firstPass) ? body.firstPass : '';
   const firstAllowed=!env.FIRST_WITNESS_HASH || (firstPass && hex(await crypto.subtle.digest('SHA-256',encoder.encode(firstPass)))===env.FIRST_WITNESS_HASH);
-  // The conditional INSERT keeps idempotent retries from consuming a number.
-  await env.DB.prepare('INSERT INTO witnesses(name,name_key,message,listed,owner_hash,recovery_hash) SELECT ?,?,?,?,?,? WHERE NOT EXISTS (SELECT 1 FROM witnesses WHERE owner_hash=?) AND (?=1 OR EXISTS (SELECT 1 FROM sqlite_sequence WHERE name=\'witnesses\' AND seq>0))').bind(name,keyName(name),message,+body.listed,owner,recovery,owner,firstAllowed?1:0).run();
-  const record=await env.DB.prepare('SELECT '+fields+' FROM witnesses WHERE owner_hash=?').bind(owner).first();
-  if(!record)fail(425,'The first witness is signing. Please try again in a moment.');
-  return record;
+  const {bucket,end,now} = await rateWindow(env,req,'register');
+  const [, , , records, usage] = await env.DB.batch([
+    env.DB.prepare('DELETE FROM limits WHERE expires < ?').bind(now),
+    env.DB.prepare(`
+      INSERT INTO witnesses(name,name_key,message,listed,owner_hash,recovery_hash)
+      SELECT ?,?,?,?,?,?
+      WHERE NOT EXISTS (SELECT 1 FROM witnesses WHERE owner_hash=?)
+        AND (?=1 OR EXISTS (SELECT 1 FROM sqlite_sequence WHERE name='witnesses' AND seq>0))
+        AND COALESCE((SELECT hits FROM limits WHERE bucket=?),0) < ?
+    `).bind(name,keyName(name),message,+body.listed,owner,recovery,owner,firstAllowed?1:0,bucket,registrationLimit),
+    // SQLite changes() refers to the immediately preceding insert, excluding triggers.
+    env.DB.prepare(`
+      INSERT INTO limits(bucket,expires,hits)
+      SELECT ?,?,1 WHERE changes()=1
+      ON CONFLICT(bucket) DO UPDATE SET hits=hits+1
+    `).bind(bucket,end),
+    env.DB.prepare('SELECT '+fields+' FROM witnesses WHERE owner_hash=?').bind(owner),
+    env.DB.prepare('SELECT hits FROM limits WHERE bucket=?').bind(bucket)
+  ]);
+  if (records.results.length) return records.results[0];
+  if (usage.results[0]?.hits >= registrationLimit) rateLimitExceeded();
+  fail(425,'The first witness is signing. Please try again in a moment.');
 }
 export async function recover(env, req, body) {
   checkTokenFormat(body.challenge);
+  const recovery = recoveryInput(body.email,body.phrase);
   await verifyChallenge(env,req,body.challenge,'recover');
   await throttle(env,req,'recover',12);
-  const hash = await mac(env,'recovery:'+recoveryInput(body.email,body.phrase));
+  const hash = await mac(env,'recovery:'+recovery);
   const {results} = await env.DB.prepare('SELECT id,name FROM witnesses WHERE recovery_hash=? ORDER BY id DESC LIMIT 50').bind(hash).all();
   if (!results.length) fail(404,'No matching entry. Check your email and recovery phrase.');
   return Promise.all(results.map(async row => ({...row,key:await mac(env,'restore:'+row.id+':'+hash)})));
@@ -106,7 +131,7 @@ export async function registry(env,params) {
 }
 export async function count(env) { return (await env.DB.prepare('SELECT participants AS total FROM totals WHERE id=1').first()).total; }
 export async function moderate(env,req,id,noteOnly=false) {
-  if (!env.ADMIN_TOKEN || req.headers.get('Authorization')!=='Bearer '+env.ADMIN_TOKEN) fail(404,'Entry unavailable.');
+  if (!Number.isSafeInteger(id) || id<1 || !env.ADMIN_TOKEN || req.headers.get('Authorization')!=='Bearer '+env.ADMIN_TOKEN) fail(404,'Entry unavailable.');
   const statement=noteOnly ? "UPDATE witnesses SET message='[note removed]' WHERE id=?" : 'DELETE FROM witnesses WHERE id=?';
   const result=await env.DB.prepare(statement).bind(id).run();
   if(!result.meta.changes)fail(404,'Entry unavailable.');
