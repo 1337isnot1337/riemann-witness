@@ -1,0 +1,18 @@
+{
+  "name": "riemann-witness",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "engines": {
+    "node": ">=22.13.0"
+  },
+  "scripts": {
+    "build": "node scripts/build.mjs",
+    "dev": "wrangler dev",
+    "test": "npm run build && node --test test/*.test.mjs"
+  },
+  "devDependencies": {
+    "esbuild": "0.27.2",
+    "miniflare": "4.20260507.1"
+  }
+}
