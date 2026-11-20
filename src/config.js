@@ -1,2 +1,2 @@
 export const SITE='https://riemannsolved.com/';
-export const API='https://riemann-witness.canvaswork.workers.dev';
+export const API='https://w.riemannsolved.com';

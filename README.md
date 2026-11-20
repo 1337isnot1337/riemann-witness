@@ -1,5 +1,7 @@
 # I Was Here
 
+[Open RiemannSolved.com](https://riemannsolved.com/) · [View the specimen badge](https://riemannsolved.com/specimen.png)
+
 A mobile-first public time capsule for November 20, 2026. The homepage lives on GitHub Pages. A Cloudflare Worker assigns real witness numbers in D1 and serves personalized HTML and PNGs to people and social crawlers. The homepage, fonts, engraving, and specimen are static files. No homelab access or paid service is required.
 
 ## Run locally
