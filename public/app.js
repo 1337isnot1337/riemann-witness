@@ -137,7 +137,10 @@ if($('#owner')) {
     const [,id,key]=match,path='/w/'+n(id),priv='/api/manage/'+id;
     const headers={Authorization:'Bearer '+key};
     const w=await request(priv,{headers});
-    try{localStorage.setItem('riemann-owner',value);}catch{}
+    try{
+      localStorage.setItem('riemann-owner',value);
+      if(location.hash && localStorage.getItem('riemann-owner')===value)history.replaceState(null,'',location.pathname+location.search);
+    }catch{}
     // Keep the capability in the copied management link, out of browser requests.
     const permanent=ownerUrl(id,key),publicURL=api+path;
     const status=el('p','', 'status');status.setAttribute('role','status');
