@@ -102,12 +102,14 @@ if(register) {
   const searchStatus=el('p',null,'status');searchStatus.setAttribute('role','status');
   box.removeAttribute('aria-live');box.before(searchStatus);
   const emptyRegister='The register is open. The first public signature will appear here.';
-  let page,version=0,seenCounts;
+  let page,version=0,seenCounts,privateCount=0,requestedQuery='';
   async function live(){
     try{const {total,public:listed,private:unlisted}=await request('/api/count');
       $('[data-count]').textContent=total.toLocaleString()+(total===1?' witness has signed':' witnesses have signed');
-      if(Number.isSafeInteger(listed) && Number.isSafeInteger(unlisted)){
+      if(Number.isSafeInteger(listed) && Number.isSafeInteger(unlisted) && unlisted>=0){
         $('#registry-total').replaceChildren(el('strong',listed.toLocaleString()),' public',el('i','·'),el('strong',unlisted.toLocaleString()),' private');
+        privateCount=unlisted;
+        updatePrivatePlot();
       }
       const counts=total+'/'+listed;
       const changed=seenCounts!==undefined && counts!==seenCounts;
@@ -126,16 +128,19 @@ if(register) {
   const plotGuide=el('span',null,'signature-plot-guide'),plotName=$('#signature-plot-name');
   const plotNumber=$('#signature-plot-number'),plotWhen=$('#signature-plot-when');
   const plotEarlier=$('#signature-plot-earlier'),plotLater=$('#signature-plot-later');
-  let points=[],selectedPoint=-1;
+  const plotFirst=$('#first-signature'),plotLast=$('#last-signature');
+  const plotHeading=$('#signature-plot-heading'),plotZone=$('#signature-plot-zone'),plotPublic=$('#signature-plot-public');
+  const plotChoice=$('#signature-plot-choice'),plotSteps=$('#signature-plot-steps'),plotInstructions=$('#signature-plot-instructions');
+  const privateLane=$('#signature-private-lane'),privateButton=$('#signature-plot-private'),privateMarks=$('#signature-private-marks');
+  const privateGrouping=$('#signature-private-grouping'),privateDetail=$('#signature-private-detail');
+  let points=[],selectedPoint=-1,privateSelected=false,shownPrivate=0;
   const utcLabel=stamp=>new Date(stamp).toISOString().replace('T',' ').replace(/(?:\.000)?Z$/,'');
 
-  function selectPoint(index){
-    if(index===selectedPoint || !points[index])return;
+  function paintPoint(index){
     points[selectedPoint]?.mark.removeAttribute('data-selected');
     selectedPoint=index;
-    const {row,stamp,x,mark}=points[index];
+    const {row,stamp,x}=points[index];
     const number='#'+n(row.id),when=utcLabel(stamp);
-    mark.setAttribute('data-selected','');
     plotGuide.style.left=x*100+'%';
     plotName.textContent=row.name;
     plotName.href=api+'/w/'+n(row.id);
@@ -146,6 +151,40 @@ if(register) {
     plotRange.setAttribute('aria-valuetext',row.name+', witness '+number+', '+when+' UTC');
     plotEarlier.disabled=index===0;
     plotLater.disabled=index===points.length-1;
+  }
+  function showPrivate(selected){
+    privateSelected=selected;
+    privateButton.setAttribute('aria-pressed',String(selected));
+    plotChoice.hidden=plotSteps.hidden=plotGuide.hidden=selected;
+    privateDetail.hidden=!selected;
+    const mark=points[selectedPoint]?.mark;
+    if(selected)mark?.removeAttribute('data-selected');
+    else mark?.setAttribute('data-selected','');
+  }
+  function selectPoint(index){
+    if(!points[index] || (index===selectedPoint && !privateSelected))return;
+    paintPoint(index);
+    showPrivate(false);
+  }
+  function updatePrivatePlot(){
+    const count=page && !page.q && !requestedQuery ? privateCount : 0;
+    const hasPublic=points.length>0;
+    const moveFocus=!count && document.activeElement===privateButton;
+    if(count!==shownPrivate){
+      shownPrivate=count;
+      const maxMarks=18,perMark=Math.ceil(count/maxMarks);
+      privateMarks.replaceChildren(...Array.from({length:Math.min(count,maxMarks)},()=>el('i')));
+      privateGrouping.hidden=perMark<=1;
+      privateGrouping.textContent=perMark<=1?'':'Up to '+perMark.toLocaleString()+' per mark';
+      privateButton.setAttribute('aria-label','Private signatures, '+count.toLocaleString()+' total');
+    }
+    privateLane.hidden=!count;
+    plotPublic.hidden=plotZone.hidden=plotInstructions.hidden=!hasPublic;
+    plotHeading.textContent=count?'Witness signatures':'Public signatures over time';
+    plotZone.textContent=count?'Public · UTC':'UTC';
+    plot.hidden=!hasPublic && !count;
+    showPrivate(Boolean(count && (!hasPublic || privateSelected)));
+    if(moveFocus)(hasPublic?plotRange:field).focus({preventScroll:true});
   }
 
   function inspectPlot(event){
@@ -164,8 +203,10 @@ if(register) {
   },{passive:true});
   plotTrack.addEventListener('click',inspectPlot);
   plotRange.addEventListener('input',()=>selectPoint(Number(plotRange.value)-1));
+  plotRange.addEventListener('focus',()=>{if(privateSelected)selectPoint(selectedPoint);});
   plotEarlier.addEventListener('click',()=>selectPoint(selectedPoint-1));
   plotLater.addEventListener('click',()=>selectPoint(selectedPoint+1));
+  privateButton.addEventListener('click',()=>showPrivate(!privateSelected || !points.length));
 
   function updatePlot(rows){
     const selectedId=points[selectedPoint]?.row.id;
@@ -173,8 +214,20 @@ if(register) {
       .filter(({stamp})=>Number.isFinite(stamp))
       .sort((a,b)=>a.stamp-b.stamp || a.row.id-b.row.id);
     selectedPoint=-1;
-    plot.hidden=!timed.length;
-    if(!timed.length){points=[];plotMarks.replaceChildren();return;}
+    if(!timed.length){
+      points=[];
+      plotMarks.replaceChildren();
+      plotName.removeAttribute('href');
+      plotName.textContent=plotNumber.textContent='';
+      for(const time of [plotWhen,plotFirst,plotLast]){
+        time.removeAttribute('datetime');
+        time.textContent='';
+      }
+      plotRange.max=plotRange.value='1';
+      plotRange.removeAttribute('aria-valuetext');
+      updatePrivatePlot();
+      return;
+    }
 
     const count=timed.length,start=timed[0].stamp,end=timed.at(-1).stamp;
     points=timed.map(({row,stamp},index)=>{
@@ -189,13 +242,13 @@ if(register) {
     plotRange.max=String(count);
     $('#signature-plot-count').textContent=count.toLocaleString();
     $('#signature-plot-first-count').hidden=count===1;
-    const first=$('#first-signature'),last=$('#last-signature');
-    first.dateTime=new Date(start).toISOString();
-    first.textContent=utcLabel(start);
-    last.dateTime=new Date(end).toISOString();
-    last.textContent=end===start?'':utcLabel(end);
+    plotFirst.dateTime=new Date(start).toISOString();
+    plotFirst.textContent=utcLabel(start);
+    plotLast.dateTime=new Date(end).toISOString();
+    plotLast.textContent=end===start?'':utcLabel(end);
     const retained=points.findIndex(({row})=>row.id===selectedId);
-    selectPoint(retained<0?count-1:retained);
+    paintPoint(retained<0?count-1:retained);
+    updatePrivatePlot();
   }
   function updatePage(q,sort,records,hasMore,paginated){
     const last=records.at(-1)?.row;
@@ -243,6 +296,8 @@ if(register) {
   async function entries(append=false) {
     if(append && (!page?.more || more.disabled))return;
     const run=++version,q=append?page.q:field.value.trim(),sort=append?page.sort:order.value;
+    requestedQuery=q;
+    if(q)updatePrivatePlot();
     more.disabled=true;
     box.setAttribute('aria-busy','true');
     searchStatus.textContent=append?'Loading more signatures…':page?'Loading signatures…':'';
@@ -261,6 +316,8 @@ if(register) {
       else searchStatus.textContent=append?count+' more '+label+' loaded.':q?count+' '+label+' found.':'';
     }catch(err){
       if(run!==version)return;
+      requestedQuery=page?.q || '';
+      updatePrivatePlot();
       if(!page)box.replaceChildren();
       else order.value=page.sort;
       searchStatus.textContent=err.message+(page?' Previous results are still shown.':'');

@@ -46,8 +46,8 @@ export function home(origin,launch=false) {
   ${challenge(origin,'register')}<button class="button dark-btn">Claim my witness number</button></fieldset><p aria-live="polite" class="status"></p></form></div></section>
   <section class="registry" id="registry"><div class="section-heading"><h2>The registry<span>.</span></h2><span class="reg-total" id="registry-total"></span></div>
   <figure class="signatures-plot" id="signatures-plot" hidden>
-    <figcaption><span>Public signatures over time</span><span>UTC</span></figcaption>
-    <div class="signature-plot-grid">
+    <figcaption><span id="signature-plot-heading">Public signatures over time</span><span id="signature-plot-zone">UTC</span></figcaption>
+    <div class="signature-plot-grid" id="signature-plot-public">
       <div class="signature-plot-counts" aria-hidden="true"><span id="signature-plot-count"></span><span id="signature-plot-first-count">1</span></div>
       <div class="signature-plot-track" id="signature-plot-track">
         <div class="signature-plot-marks" id="signature-plot-marks" aria-hidden="true"></div>
@@ -55,11 +55,18 @@ export function home(origin,launch=false) {
       </div>
       <div class="signature-plot-times"><time id="first-signature"></time><time id="last-signature"></time></div>
     </div>
-    <div class="signature-plot-detail">
-      <div class="signature-plot-choice"><a id="signature-plot-name"></a><span id="signature-plot-number"></span><time id="signature-plot-when"></time></div>
-      <div class="signature-plot-steps"><button type="button" id="signature-plot-earlier">Earlier</button><button type="button" id="signature-plot-later">Later</button></div>
+    <div class="signature-private-lane" id="signature-private-lane" hidden>
+      <button class="signature-plot-private" id="signature-plot-private" type="button" aria-pressed="false" aria-describedby="signature-private-help">
+        Private <span class="signature-private-marks" id="signature-private-marks" aria-hidden="true"></span><span id="signature-private-grouping" aria-hidden="true" hidden></span>
+      </button>
+      <p class="signature-private-help" id="signature-private-help">Signing times are private.</p>
     </div>
-    <p class="signature-plot-instructions" id="signature-plot-instructions">Choose a mark or use the arrow keys to explore the signatures shown.</p>
+    <div class="signature-plot-detail">
+      <div class="signature-plot-choice" id="signature-plot-choice"><a id="signature-plot-name"></a><span id="signature-plot-number"></span><time id="signature-plot-when"></time></div>
+      <span class="signature-private-detail" id="signature-private-detail" hidden>Private</span>
+      <div class="signature-plot-steps" id="signature-plot-steps"><button type="button" id="signature-plot-earlier">Earlier</button><button type="button" id="signature-plot-later">Later</button></div>
+    </div>
+    <p class="signature-plot-instructions" id="signature-plot-instructions">Choose a mark or use the arrow keys to explore the public signatures shown.</p>
   </figure>
   <div class="registry-toolbar">
     <form class="search" id="search" role="search"><input id="q" type="search" aria-label="Find a witness by name or number" placeholder="Name or witness number" maxlength="64"><button aria-label="Search public witnesses"><svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.65"><circle cx="10" cy="10" r="6.5"/><path d="m15 15 5.5 5.5"/></svg></button></form>

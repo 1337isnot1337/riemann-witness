@@ -14,7 +14,8 @@ if(claim){
   ];
   const animations=new Map();
   let cancelArrival=()=>{};
-  const enabled=()=>!reduced.matches && !document.hidden && document.documentElement.dataset.motion!=='off';
+  let hoverPointer=null,keyboardFocused=false;
+  const enabled=()=>!reduced.matches && !document.hidden && document.hasFocus() && document.documentElement.dataset.motion!=='off';
 
   function decorate(button){
     const label=document.createElement('span'),readout=document.createElement('span');
@@ -33,7 +34,6 @@ if(claim){
   }
 
   function projectClaim(preview){
-    if(!enabled() || (preview && animations.has(claim)))return;
     animations.get(claim)?.();
     const {readout,restore}=decorate(claim);
     readout.textContent=claimNotation;
@@ -51,7 +51,7 @@ if(claim){
       plate.append(impression);
     }
     claim.append(plate);
-    const timeout=setTimeout(stop,preview?480:600);
+    const timeout=preview?undefined:setTimeout(()=>{stop();syncPreview();},600);
     function stop(){
       clearTimeout(timeout);
       restore();
@@ -105,25 +105,56 @@ if(claim){
     observer.observe(submit);
   }
 
-  function stopPreview(){
-    if(claim.classList.contains('claim-preview'))animations.get(claim)?.();
+  function syncPreview(){
+    const hovered=hoverPointer!==null && hover.matches && claim.matches(':hover');
+    const focused=keyboardFocused && claim.matches(':focus-visible');
+    if(enabled() && (hovered || focused)){
+      if(!animations.has(claim))projectClaim(true);
+    }else if(claim.classList.contains('claim-preview'))animations.get(claim)?.();
   }
-  claim.addEventListener('pointerenter',event=>{
-    if(event.pointerType!=='touch' && hover.matches)projectClaim(true);
+  function trackHover(event){
+    if(event.pointerType==='touch' || hoverPointer===event.pointerId || !hover.matches)return;
+    hoverPointer=event.pointerId;
+    syncPreview();
+  }
+  function endHover(event){
+    if(hoverPointer!==event.pointerId)return;
+    hoverPointer=null;
+    syncPreview();
+  }
+  claim.addEventListener('pointerenter',trackHover);
+  claim.addEventListener('pointermove',trackHover,{passive:true});
+  claim.addEventListener('pointerleave',endHover);
+  claim.addEventListener('pointercancel',endHover);
+  claim.addEventListener('pointerdown',event=>{
+    if(event.pointerType!=='touch')return;
+    hoverPointer=null;
+    keyboardFocused=false;
+    syncPreview();
   });
-  claim.addEventListener('pointerleave',stopPreview);
   claim.addEventListener('focus',()=>{
-    if(claim.matches(':focus-visible'))projectClaim(true);
+    keyboardFocused=claim.matches(':focus-visible');
+    syncPreview();
   });
-  claim.addEventListener('blur',stopPreview);
+  claim.addEventListener('blur',()=>{
+    keyboardFocused=false;
+    syncPreview();
+  });
   claim.addEventListener('click',event=>{
     if(event.defaultPrevented || event.button!==0 || event.altKey || event.ctrlKey || event.metaKey || event.shiftKey || !enabled())return;
     projectClaim(false);
     echoOnArrival();
   });
-  window.addEventListener('witness-motion-change',()=>{
-    if(enabled())return;
+  function syncMotion(){
+    if(enabled()){syncPreview();return;}
+    if(document.hidden || !document.hasFocus())hoverPointer=null;
     cancelArrival();
     for(const stop of animations.values())stop();
-  });
+  }
+  window.addEventListener('witness-motion-change',syncMotion);
+  window.addEventListener('focus',syncMotion);
+  window.addEventListener('blur',syncMotion);
+  document.addEventListener('visibilitychange',syncMotion);
+  reduced.addEventListener('change',syncMotion);
+  hover.addEventListener('change',syncPreview);
 }

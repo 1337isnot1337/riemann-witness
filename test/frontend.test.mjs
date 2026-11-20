@@ -14,12 +14,21 @@ class Element {
   style = {};
   rect = {top: 20, bottom: 80};
 
+  get href() { return this.attributes.get('href'); }
+  set href(value) { this.attributes.set('href', value); }
+  set dateTime(value) { this.attributes.set('datetime', value); }
+
   addEventListener(event, handler) { this.handlers.set(event, handler); }
   querySelector(selector) { return this.selectors.get(selector); }
   setAttribute(name, value) { this.attributes.set(name, value); }
   removeAttribute(name) { this.attributes.delete(name); }
   before(node) { this.previous = node; }
-  append(...nodes) { for (const node of nodes) this.insertBefore(node, null); }
+  append(...nodes) {
+    for (const node of nodes) {
+      const child = typeof node === 'string' ? Object.assign(new Element(), {textContent: node}) : node;
+      this.insertBefore(child, null);
+    }
+  }
   replaceChildren(...nodes) { this.children = []; this.append(...nodes); }
   insertBefore(node, before) {
     node.remove();
@@ -35,16 +44,19 @@ class Element {
   getBoundingClientRect() { return this.rect; }
 }
 
-function searchFixture() {
+function searchFixture(initialCounts = {total: 1}) {
   const elements = new Map(['#register', '#search', '#q', '#entries', '#more', '#registry-order', '.registry-archive',
     '#signatures-plot', '[data-count]', '#registry-total', '#signature-plot-track', '#signature-plot-marks',
     '#signature-plot-range', '#signature-plot-name', '#signature-plot-number', '#signature-plot-when',
     '#signature-plot-earlier', '#signature-plot-later', '#signature-plot-count', '#signature-plot-first-count',
+    '#signature-plot-heading', '#signature-plot-zone', '#signature-plot-public', '#signature-plot-choice',
+    '#signature-plot-steps', '#signature-plot-instructions', '#signature-private-lane', '#signature-plot-private',
+    '#signature-private-marks', '#signature-private-grouping', '#signature-private-detail',
     '#first-signature', '#last-signature'].map(selector => [selector, new Element()]));
   elements.get('#registry-order').value = 'newest';
   elements.get('#register').selectors.set('.status', new Element());
   const requests = [], timers = [];
-  let poll, total = 1;
+  let poll, counts = initialCounts;
   const IntersectionObserver = class { observe() {} };
   const document = {
     querySelector: key => elements.get(key),
@@ -64,7 +76,7 @@ function searchFixture() {
     setTimeout(callback, interval) { assert.equal(interval, 1500); timers.push(callback); },
     fetch(url) {
       const {pathname, searchParams} = new URL(url);
-      if (pathname === '/api/count') return Promise.resolve(Response.json({total}));
+      if (pathname === '/api/count') return Promise.resolve(Response.json(counts));
       assert.equal(pathname, '/api/registry');
       return new Promise(resolve => requests.push({query: Object.fromEntries(searchParams), resolve}));
     },
@@ -75,10 +87,11 @@ function searchFixture() {
     order: elements.get('#registry-order'),
     field,
     document,
+    elements,
     timers,
     results: elements.get('#entries'),
     more: elements.get('#more'),
-    refresh(next) { total = next; poll(); },
+    refresh(next) { counts = typeof next === 'number' ? {total: next} : next; poll(); },
     submit(query) {
       field.value = query;
       elements.get('#search').handlers.get('submit')({preventDefault() {}});
@@ -199,4 +212,91 @@ test('changing order during pagination restarts at the first match and ignores t
   await flush();
   assert.equal(results.children.length, 2);
   assert.equal(more.hidden, true);
+});
+
+test('private selection uses aggregate marks and can return to the public plot', async () => {
+  const {requests, elements, submit, refresh} = searchFixture({total: 4, public: 1, private: 3});
+  const lane = elements.get('#signature-private-lane');
+  const privateButton = elements.get('#signature-plot-private');
+  const privateDetail = elements.get('#signature-private-detail');
+  const publicChoice = elements.get('#signature-plot-choice');
+  const privateMarks = elements.get('#signature-private-marks');
+  const publicRange = elements.get('#signature-plot-range');
+  const publicRow = row(3, 'Public witness');
+
+  submit('');
+  requests[0].resolve(Response.json({entries: [publicRow], more: false}));
+  await flush();
+  assert.equal(lane.hidden, false);
+  assert.equal(privateMarks.children.length, 3);
+  assert.equal(privateDetail.hidden, true);
+  privateButton.handlers.get('click')();
+  assert.equal(privateButton.attributes.get('aria-pressed'), 'true');
+  assert.equal(privateDetail.hidden, false);
+  assert.equal(publicChoice.hidden, true);
+  assert.equal(elements.get('#signature-plot-steps').hidden, true);
+  privateButton.handlers.get('click')();
+  assert.equal(privateButton.attributes.get('aria-pressed'), 'false');
+  assert.equal(elements.get('#signature-plot-name').textContent, publicRow.name);
+  privateButton.handlers.get('click')();
+  publicRange.handlers.get('focus')();
+  assert.equal(privateButton.attributes.get('aria-pressed'), 'false');
+  assert.equal(privateDetail.hidden, true);
+  assert.equal(publicChoice.hidden, false);
+
+  privateButton.handlers.get('click')();
+  submit('3');
+  assert.equal(lane.hidden, true);
+  assert.equal(privateDetail.hidden, true);
+  refresh({total: 6, public: 1, private: 5});
+  await flush();
+  assert.equal(lane.hidden, true);
+  requests[1].resolve(Response.json({entries: [publicRow], more: false}));
+  await flush();
+  assert.equal(lane.hidden, true);
+  submit('');
+  requests[2].resolve(Response.json({entries: [publicRow], more: false}));
+  await flush();
+  assert.equal(lane.hidden, false);
+  assert.equal(privateMarks.children.length, 5);
+  assert.equal(publicChoice.hidden, false);
+
+  refresh({total: 6, public: 0, private: 6});
+  await flush();
+  requests[3].resolve(Response.json({entries: [], more: false}));
+  await flush();
+  assert.equal(privateDetail.hidden, false);
+  assert.equal(elements.get('#signature-plot-name').href, undefined);
+  assert.equal(elements.get('#signature-plot-name').textContent, '');
+  assert.equal(elements.get('#signature-plot-number').textContent, '');
+  assert.equal(elements.get('#signature-plot-when').attributes.has('datetime'), false);
+  assert.equal(publicRange.attributes.has('aria-valuetext'), false);
+});
+
+test('an all-private register groups large totals without showing a public time axis', async () => {
+  const {requests, elements, submit, refresh} = searchFixture({total: 1, public: 0, private: 1});
+  const plot = elements.get('#signatures-plot');
+  const privateMarks = elements.get('#signature-private-marks');
+  submit('');
+  requests[0].resolve(Response.json({entries: [], more: false}));
+  await flush();
+  assert.equal(plot.hidden, false);
+  assert.equal(privateMarks.children.length, 1);
+  assert.equal(elements.get('#signature-private-detail').hidden, false);
+  for (const selector of ['#signature-plot-public','#signature-plot-zone','#signature-plot-instructions']){
+    assert.equal(elements.get(selector).hidden, true);
+  }
+
+  refresh({total: 1_000_000, public: 0, private: 1_000_000});
+  await flush();
+  assert.equal(privateMarks.children.length, 18);
+  assert.equal(elements.get('#signature-private-grouping').hidden, false);
+  requests[1].resolve(Response.json({entries: [], more: false}));
+  await flush();
+  refresh({total: 0, public: 0, private: 0});
+  await flush();
+  assert.equal(plot.hidden, true);
+  assert.equal(privateMarks.children.length, 0);
+  requests[2].resolve(Response.json({entries: [], more: false}));
+  await flush();
 });

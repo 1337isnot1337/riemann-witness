@@ -23,14 +23,14 @@ export function aboutPage() {
   return page(new URL(SITE).origin, {
     path: '/about/',
     title: 'About I Was Here | The Riemann Hypothesis Witness Registry',
-    description: 'Why Cinna Davis built I Was Here, an independent time capsule for the November 20, 2026 Riemann Hypothesis announcement, and how the site was made.',
+    description: 'I’m Cinna Davis. I built I Was Here as an independent time capsule for the November 20, 2026 Riemann Hypothesis announcement.',
     image: '/registry-card.png',
     body: `<main id="main" class="about">
       <header class="about-heading">
         <img class="about-engraving" src="/art/critical-strip.svg" alt="" width="736" height="348">
         <div class="about-width">
           <h1>About I Was Here<em>.</em></h1>
-          <p class="lede">A time capsule for the Riemann Hypothesis announcement on <time datetime="2026-11-20">November 20, 2026</time>.</p>
+          <p class="lede">I built this time capsule to mark the Riemann Hypothesis announcement on <time datetime="2026-11-20">November 20, 2026</time>.</p>
         </div>
       </header>
       <div class="about-paper">
@@ -38,20 +38,20 @@ export function aboutPage() {
           <div class="about-story">
             <section>
               <h2>Why keep a register?</h2>
-              <p>When Levent Alpöge announced that he and Claude had found a proof of the Riemann Hypothesis, there was plenty to read about the math. Cinna Davis wanted somewhere for people to record where they were and what went through their minds when they heard the news.</p>
+              <p>When Levent Alpöge announced that he and Claude had found a proof of the Riemann Hypothesis, I wanted somewhere for people to record where they were and what they thought when they heard the news.</p>
               <p>Each signature gets a number and a UTC timestamp, printed on a badge you can keep or share. You can leave a note in the public register or keep your entry private.</p>
               <p><a href="https://alpo.ge/remark.pdf">Read Alpöge’s original announcement</a></p>
             </section>
             <section>
-              <h2>How it was made</h2>
-              <p>Cinna built the site with help from Astra in Codex. The engraving is drawn from values of the Riemann zeta function. The five gold marks show its first five nontrivial zeros above the real axis.</p>
-              <p>GitHub Pages serves the site. A Cloudflare Worker records signatures in D1, assigns numbers, and renders each engraved badge with the name and time of signing.</p>
+              <h2>How I built it</h2>
+              <p>I built the site with help from Astra in Codex. The engraving comes from values of the Riemann zeta function, with five gold marks at its first five nontrivial zeros above the real axis.</p>
+              <p>I host the site on GitHub Pages. A Cloudflare Worker records signatures in D1, assigns numbers, and renders each badge with the signer’s name and signing time.</p>
               <p><a href="https://github.com/1337isnot1337/riemann-witness">Explore the source code</a></p>
             </section>
           </div>
           <aside class="about-credit" aria-labelledby="about-creator">
             <h2 id="about-creator">Cinna Davis</h2>
-            <p>Cinna is a student developer and researcher working in software, mathematics, physics, and robotics. Cinna created the register independently.</p>
+            <p>I’m a student developer and researcher working in software, mathematics, physics, and robotics. I made this register as an independent project.</p>
             <a class="about-portfolio" href="https://1337isnot1337.github.io/"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true" focusable="false"><path d="M4 5h16v14H4zM8 9h8m-8 3h8m-8 3h4"/></svg>Portfolio</a>
             <nav class="about-profiles" aria-label="Cinna Davis’s social profiles">
               ${profiles.map(({name, url, icon}) => `<a href="${url}" aria-label="${name}" title="${name}"><svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true" focusable="false">${icon}</svg></a>`).join('')}

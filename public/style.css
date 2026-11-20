@@ -184,7 +184,7 @@ html[data-motion=off] .motion-switch .play-icon{display:inline}
   white-space:nowrap;text-align:center;pointer-events:none;text-transform:none
 }
 .hero .claim-decoding{--claim-duration:600ms;--claim-reach:1.18}
-.hero .claim-preview{--claim-duration:480ms;--claim-reach:1}
+.hero .claim-preview{--claim-duration:1480ms}
 .hero .claim-decode-label{pointer-events:none;animation:claim-lettering var(--claim-duration) ease-out both}
 .hero .claim-decode-readout{
   font:400 1.17em/1 Georgia,"Times New Roman",serif;letter-spacing:.04em;word-spacing:.14em;
@@ -197,6 +197,10 @@ html[data-motion=off] .motion-switch .play-icon{display:inline}
   animation:claim-impression var(--claim-duration) cubic-bezier(.16,1,.3,1) both
 }
 .claim-impressions span:nth-child(3n + 2){color:var(--gold)}
+.hero .claim-preview .claim-decode-label{animation-name:claim-loop-lettering}
+.hero .claim-preview .claim-decode-readout{animation-name:claim-loop-notation}
+.hero .claim-preview .claim-impressions span{animation-name:claim-loop-impression}
+.hero .claim-preview :is(.claim-decode-label,.claim-decode-readout,.claim-impressions span){animation-iteration-count:infinite}
 @keyframes claim-lettering{
   0%,65%,100%{opacity:1}
   7%,52%{opacity:0}
@@ -209,6 +213,19 @@ html[data-motion=off] .motion-switch .play-icon{display:inline}
   from{opacity:0;transform:translate(-50%,-50%) scale(.72)}
   18%,46%{opacity:1}
   to{opacity:0;transform:translate(-50%,-50%) translate(calc(var(--claim-x) * var(--claim-reach)),calc(var(--claim-y) * var(--claim-reach)))}
+}
+@keyframes claim-loop-lettering{
+  0%,37%,100%{opacity:1}
+  5%,28%{opacity:0}
+}
+@keyframes claim-loop-notation{
+  0%,37%,100%{opacity:0}
+  5%,28%{opacity:1}
+}
+@keyframes claim-loop-impression{
+  0%{opacity:0;transform:translate(-50%,-50%) scale(.72)}
+  9%,25%{opacity:1}
+  40%,100%{opacity:0;transform:translate(-50%,-50%) translate(var(--claim-x),var(--claim-y))}
 }
 
 /* Repeat the existing readout when the visitor reaches the form. */
@@ -269,7 +286,20 @@ html[data-motion=off] .motion-switch .play-icon{display:inline}
   display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:4px 15px;margin-top:9px
 }
 .signatures-plot .signature-plot-choice{display:flex;flex-wrap:wrap;align-items:baseline;gap:2px 12px;min-width:0}
-.signatures-plot .signature-plot-choice a{font:20px/1.35 Georgia,serif;overflow-wrap:anywhere}
+.signatures-plot .signature-plot-choice a,.signature-private-detail{font:20px/1.35 Georgia,serif;overflow-wrap:anywhere}
+.signature-private-lane{display:flex;align-items:center;flex-wrap:wrap;gap:4px 12px;margin-top:7px}
+.signature-private-help{margin:0;color:var(--sage);font-size:13px}
+.signature-plot-private{
+  display:flex;align-items:center;flex-wrap:wrap;gap:4px 11px;max-width:100%;
+  min-height:44px;padding:4px 9px;background:transparent;color:var(--sage);
+  border:1px solid var(--rule);border-radius:2px;cursor:pointer;
+  font:12px/1.4 ui-monospace,monospace
+}
+.signature-plot-private:hover,.signature-plot-private[aria-pressed=true]{border-color:var(--gold);color:var(--gold)}
+.signature-private-marks{display:flex;align-items:center;gap:4px}
+.signature-private-marks i{width:5px;height:5px;border:1px solid currentColor;border-radius:50%}
+.signature-plot-private[aria-pressed=true] .signature-private-marks i{background:currentColor}
+.signature-private-detail{min-height:44px;display:flex;align-items:center}
 .signatures-plot .signature-plot-choice span,.signatures-plot .signature-plot-choice time{
   font:12px/1.45 ui-monospace,monospace;font-variant-numeric:tabular-nums;color:var(--sage)
 }
