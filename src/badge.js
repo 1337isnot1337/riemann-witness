@@ -141,7 +141,7 @@ export async function badgePng(witness, portrait = false, host = '') {
     ? '#' + String(witness.id).padStart(6, '0')
     : 'SPECIMEN';
   const name = witness ? witness.name.normalize('NFC') : 'Your name here';
-  const baseline = portrait ? 126 : 107;
+  const baseline = portrait ? 132 : 110;
   lettering(rows, w, names, nameInk, name, 59, baseline, divider - 85, 1);
   lettering(
     rows,
@@ -167,7 +167,7 @@ export async function badgePng(witness, portrait = false, host = '') {
     59,
     footerY,
     portrait ? 411 : 500,
-    0.32,
+    0.256,
   );
   const site = host.replace(/^https?:\/\//, '').replace(/\/$/, '');
   const website = site || 'I WAS HERE';
@@ -176,7 +176,7 @@ export async function badgePng(witness, portrait = false, host = '') {
     Array.from(
       website,
       (char) => (numbers.g[char] || numbers.g['?'])[5] / 16,
-    ).reduce((a, b) => a + b, 0) * 0.32;
+    ).reduce((a, b) => a + b, 0) * 0.256;
   lettering(
     rows,
     w,
@@ -186,7 +186,7 @@ export async function badgePng(witness, portrait = false, host = '') {
     w - 60 - Math.min(allowed, actualWidth),
     footerY,
     allowed,
-    0.32,
+    0.256,
   );
   return png(plate, rows);
 }

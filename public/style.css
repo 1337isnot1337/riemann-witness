@@ -8,3 +8,7 @@
 .signatures-plot{margin:24px 0;max-width:900px}.signatures-plot figcaption,.plot-times{display:flex;justify-content:space-between;font:12px/1.4 ui-monospace,monospace;color:var(--sage)}.signatures-plot .constellation{position:relative;height:28px;margin:8px 4px;padding:0}.constellation i{position:absolute;width:5px;height:5px}.plot-times time{white-space:nowrap}
 
 .story h1{margin-top:.3em}.story h2{font-size:clamp(26px,3vw,40px);margin-top:1.4em}.story p,.story figcaption{max-width:70ch}.story figure{margin:30px 0}.story figure img{width:100%;height:auto}.story figcaption{font-size:14px;color:var(--sage)}.archive-list{list-style:none;padding:0}.archive-list .signature{align-items:baseline}
+
+.hero-note{font-size:14px;margin:12px 0 0;color:var(--sage)}.phone-specimen{display:none}.sub .lede,.signature a,.signature strong,.signature small{min-width:0;overflow-wrap:anywhere}.share-options{margin:12px 0}.share-options summary,.phone-specimen summary{cursor:pointer;text-decoration:underline;text-underline-offset:3px}.share-options .actions{margin-top:8px}.downloads{align-items:center}.downloads .plain{border:0;padding:0;min-height:40px;text-decoration:underline;font-weight:400}.challenge{max-width:100%}
+@media(max-width:760px){.phone-specimen{display:block;margin-top:12px;font-size:14px}.phone-specimen img{width:100%;height:auto;margin-top:8px}}
+@media(max-width:365px){.hero .button{font-size:12px;padding-inline:14px}}

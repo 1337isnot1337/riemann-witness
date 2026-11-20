@@ -71,11 +71,17 @@ def plate(portrait):
             d.line((x, y, x, y + sy * 26), fill=GOLD, width=2)
     margin = 59
     rosette(d, margin + 15, 70, 22)
-    label(d, (margin + 55, 61), "THE RIEMANN HYPOTHESIS", fill=CREAM, size=16)
-    label(d, (w - margin - 131, 64), "1859 — 2026", size=14)
+    event_size = 46 if portrait else 64
+    d.text(
+        (margin + 51, 69),
+        "RIEMANN HYPOTHESIS SOLVED.",
+        font=font(event_size),
+        fill=CREAM,
+        anchor="lm",
+    )
     d.line((margin, 109, w - margin, 109), fill=(100, 113, 88))
     if portrait:
-        label(d, (margin, 151), "NOVEMBER 20, 2026", size=14, fill=MINT)
+        label(d, (margin, 137), "NOVEMBER 20, 2026", size=25, gap=1, fill=MINT)
         d.text((margin - 5, 174), "I was", font=font(145), fill=CREAM, anchor="lt")
         d.text(
             (margin + 183, 303),
@@ -85,16 +91,16 @@ def plate(portrait):
             anchor="lt",
         )
         px, py, pw = margin - 2, 475, w - 2 * margin + 4
-        label(d, (margin, 882), "RIEMANN HYPOTHESIS SOLVED", size=18, fill=CREAM, gap=2)
+        label(d, (margin, 882), "1859 — 2026", size=25, fill=GOLD, gap=2)
         panel_top = 934
     else:
-        label(d, (margin, 145), "NOVEMBER 20, 2026", size=13, fill=MINT)
+        label(d, (margin, 131), "NOVEMBER 20, 2026", size=24, gap=1, fill=MINT)
         d.text((margin - 3, 177), "I was", font=font(99), fill=CREAM, anchor="lt")
         d.text(
             (margin + 62, 251), "here.", font=font(114, ITALIC), fill=CREAM, anchor="lt"
         )
         px, py, pw = 499, 112, 615
-        label(d, (margin, 369), "RIEMANN HYPOTHESIS SOLVED", size=14, fill=CREAM)
+        label(d, (margin, 367), "1859 — 2026", size=20, fill=GOLD, gap=1)
         panel_top = 404
     engraving = Image.open(
         BytesIO(
@@ -131,8 +137,8 @@ def plate(portrait):
     base = panel_top
     divider = 581 if portrait else 822
     d.line((divider, base + 24, divider, h - 99), fill=(176, 176, 148))
-    label(d, (margin, base + 31), "REGISTERED WITNESS", size=13, fill=INK)
-    label(d, (divider + 28, base + 31), "REGISTRY NUMBER", size=13, fill=INK)
+    label(d, (margin, base + 31), "REGISTERED WITNESS", size=16, fill=INK)
+    label(d, (divider + 28, base + 31), "REGISTRY NUMBER", size=16, fill=INK)
     d.line((margin, h - 94, w - margin, h - 94), fill=(153, 157, 131))
     return im
 
@@ -228,8 +234,8 @@ def main():
             s in unicodedata.name(chr(i), "") for s in ("LATIN", "GREEK", "CYRILLIC")
         )
     ]
-    write("names", atlas(SERIF, 55, ascii_chars + extra + letters))
-    write("numbers", atlas(MONO, 48, ascii_chars))
+    write("names", atlas(ITALIC, 64, ascii_chars + extra + letters))
+    write("numbers", atlas(MONO, 60, ascii_chars))
     write("landscape", make_plate(False))
     write("portrait", make_plate(True))
 

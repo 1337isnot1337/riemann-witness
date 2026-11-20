@@ -8,8 +8,9 @@
   },
   "scripts": {
     "build": "node scripts/build.mjs",
-    "dev": "wrangler dev",
-    "test": "npm run build && node --test test/*.test.mjs"
+    "dev": "wrangler dev --host 127.0.0.1",
+    "test": "npm run build && node --test test/*.test.mjs",
+    "build:preview": "node scripts/build.mjs --preview"
   },
   "devDependencies": {
     "esbuild": "0.27.2",

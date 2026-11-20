@@ -23,6 +23,8 @@ async function route(req,env,ctx,url) {
   const {pathname:path,origin}=url,read=req.method==='GET'||req.method==='HEAD';
   restrictOrigin(req,url);
   if(req.method==='OPTIONS')return new Response(null,{status:204});
+  const admin=/^\/api\/admin\/([1-9]\d*)(\/note)?$/.exec(path);
+  if(admin && req.method==='DELETE')return json(await moderate(env,req,Number(admin[1]),Boolean(admin[2])));
   const preview=env.LOCAL_REGISTRY_PREVIEW==='1' && ['localhost','127.0.0.1','registry.example'].includes(url.hostname);
   if(!REGISTRY_OPEN && !preview){
     if(read && path==='/')return new Response(holding,{headers:{'Content-Type':'text/html; charset=utf-8','Cache-Control':'no-store','X-Robots-Tag':'noindex, follow'}});
@@ -46,8 +48,6 @@ async function route(req,env,ctx,url) {
     if(read)return json(await getWitness(env,id,key,true));
     if(['DELETE','PATCH'].includes(req.method))return json(await manage(env,req,id,key,req.method==='PATCH'?await payload(req):{}));
     unsupported();}
-  const admin=/^\/api\/admin\/([1-9]\d*)$/.exec(path);
-  if(admin && req.method==='DELETE')return json(await moderate(env,req,Number(admin[1])));
   if(!read)unsupported();
   if(['/manage','/recover','/privacy'].includes(path))return utility(origin,path.slice(1));
   const card=/^\/w\/(\d{1,15})(?:\/(social|portrait)\.png)?$/.exec(path);
@@ -88,6 +88,6 @@ export default {async fetch(req,env,ctx) {
   }
   if(url.hostname.endsWith('.workers.dev'))out.headers.set('X-Robots-Tag','noindex, follow');
   out.headers.set('Referrer-Policy','no-referrer');out.headers.set('X-Content-Type-Options','nosniff');out.headers.set('X-Frame-Options','DENY');
-  out.headers.set('Content-Security-Policy',"default-src 'self'; img-src 'self' blob:; frame-ancestors 'none'; base-uri 'none'; form-action 'self'");
+  out.headers.set('Content-Security-Policy',"default-src 'self'; script-src 'self' https://challenges.cloudflare.com; frame-src https://challenges.cloudflare.com; connect-src 'self' https://challenges.cloudflare.com; img-src 'self' blob:; frame-ancestors 'none'; base-uri 'none'; form-action 'self'");
   return out;
 }};
