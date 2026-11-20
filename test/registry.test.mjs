@@ -8,7 +8,7 @@ const origin='https://registry.example', token=()=>randomBytes(32).toString('hex
 let mf, db;
 before(async()=>{
   mf=new Miniflare({modules:true,scriptPath:'dist/server/index.js',compatibilityDate:'2026-05-01',
-    d1Databases:['DB'],bindings:{REGISTRY_SECRET:token(),ADMIN_TOKEN:'test-admin'},cache:false});
+    d1Databases:['DB'],bindings:{LOCAL_REGISTRY_PREVIEW:'1',REGISTRY_SECRET:token(),ADMIN_TOKEN:'test-admin'},cache:false});
   db=await mf.getD1Database('DB');
   const sql=await readFile('migrations/0001_registry.sql','utf8');
   for(const statement of sql.trim().split(/;\s*\n(?=CREATE |INSERT )/))await db.prepare(statement).run();
@@ -74,11 +74,12 @@ test('validation, moderation, CORS and network cap',async()=>{
   const block=[];for(let i=0;i<25;i++)block.push((await post('/api/register',entry(i),'203.0.113.9')).status);
   assert.equal(block[0],200);assert.equal(block.at(-1),429);
 });
-test('Pages build uses project-relative assets and absolute social metadata',async()=>{
-  const html=await readFile('dist/pages/index.html','utf8');assert.match(html,/meta name="registry-api" content="https:\/\//);assert.match(html,/src="\.\/app.js"/);assert.match(html,/og:image" content="https:\/\/[^"]+\/specimen.png/);assert.match(html,/RIEMANN<br>HYPOTHESIS<br><em>SOLVED\./);
-  png(await readFile('dist/pages/specimen.png'),1200,630);
+test('holding page remains the only published page and registrations are closed on public hosts',async()=>{
+  const html=await readFile('dist/pages/index.html','utf8');
+  assert.match(html,/Coming<br><em>soon/);assert.doesNotMatch(html,/<form|registry-api/);
+  const r=await mf.dispatchFetch('https://w.riemannsolved.com/api/register',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(entry(1))});
+  assert.equal(r.status,503);
 });
-
 test('indexed name-prefix pagination visits each public namesake once',async()=>{
   for(let i=0;i<23;i++)await post('/api/register',entry(i,{name:'Amélie Fields'}),'198.51.100.'+(i+1));
   await post('/api/register',entry(0,{name:'Amélie Private',listed:false}),'198.51.100.77');

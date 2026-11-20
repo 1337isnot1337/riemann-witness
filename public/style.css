@@ -6,3 +6,5 @@
 @media(max-width:365px){.hero h1{font-size:14vw}}
 
 .signatures-plot{margin:24px 0;max-width:900px}.signatures-plot figcaption,.plot-times{display:flex;justify-content:space-between;font:12px/1.4 ui-monospace,monospace;color:var(--sage)}.signatures-plot .constellation{position:relative;height:28px;margin:8px 4px;padding:0}.constellation i{position:absolute;width:5px;height:5px}.plot-times time{white-space:nowrap}
+
+.story h1{margin-top:.3em}.story h2{font-size:clamp(26px,3vw,40px);margin-top:1.4em}.story p,.story figcaption{max-width:70ch}.story figure{margin:30px 0}.story figure img{width:100%;height:auto}.story figcaption{font-size:14px;color:var(--sage)}.archive-list{list-style:none;padding:0}.archive-list .signature{align-items:baseline}

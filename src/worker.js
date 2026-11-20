@@ -1,7 +1,9 @@
 import {badgePng} from './badge.js';
 import {RequestError, register,recover,registry,count,manage,moderate,getWitness,serial} from './data.js';
 import {home,page,utility,witnessPage,esc} from './pages.js';
-import {SITE} from './config.js';
+import {archivePage,historyPage,witnessSitemap} from './discovery.js';
+import holding from '../holding/index.html';
+import {API,SITE,REGISTRY_OPEN} from './config.js';
 const json = data => Response.json(data,{headers:{'Cache-Control':'no-store'}});
 function unsupported(){throw new RequestError(405,'Method unavailable.');}
 async function payload(req) {
@@ -21,7 +23,14 @@ async function route(req,env,ctx,url) {
   const {pathname:path,origin}=url,read=req.method==='GET'||req.method==='HEAD';
   restrictOrigin(req,url);
   if(req.method==='OPTIONS')return new Response(null,{status:204});
-  if(path==='/')return url.hostname==='w.riemannsolved.com'?Response.redirect(SITE,302):home(origin);
+  const preview=env.LOCAL_REGISTRY_PREVIEW==='1' && ['localhost','127.0.0.1','registry.example'].includes(url.hostname);
+  if(!REGISTRY_OPEN && !preview){
+    if(read && path==='/')return new Response(holding,{headers:{'Content-Type':'text/html; charset=utf-8','Cache-Control':'no-store','X-Robots-Tag':'noindex, follow'}});
+    if(read && path==='/robots.txt')return new Response('User-agent: *\nDisallow: /\n',{headers:{'Content-Type':'text/plain'}});
+    if(read && ['/holding.css','/coming-soon.png','/seal.svg','/art/critical-strip.svg','/fonts/gloock.woff2'].includes(path) && env.ASSETS)return env.ASSETS.fetch(req);
+    return Response.json({error:'The witness registry is coming soon.'},{status:503,headers:{'Cache-Control':'no-store','X-Robots-Tag':'noindex','Retry-After':'86400'}});
+  }
+  if(path==='/')return url.hostname==='w.riemannsolved.com'?Response.redirect(SITE,302):home(url.hostname.endsWith('.workers.dev')?new URL(SITE).origin:origin);
   if(path==='/api/register'&&req.method==='POST')return json(await register(env,req,await payload(req)));
   if(path==='/api/recover'&&req.method==='POST')return json(await recover(env,req,await payload(req)));
   if(path==='/api/count'&&read){
@@ -50,11 +59,13 @@ async function route(req,env,ctx,url) {
       return new Response(req.method==='HEAD'?null:await badgePng(w,card[2]==='portrait',new URL(SITE).hostname),{headers});
     }
     if(card[1]!==serial(id))return Response.redirect(origin+'/w/'+serial(id),301);
-    return witnessPage(origin,w);
+    return witnessPage(origin.endsWith('.workers.dev')?API:origin,w);
   }
   if(path==='/specimen.png')return new Response(await badgePng(null,false,new URL(SITE).hostname),{headers:{'Content-Type':'image/png','Cache-Control':'public, max-age=86400'}});
   if(path==='/robots.txt')return new Response('User-agent: *\nDisallow: /api/\nDisallow: /manage\nDisallow: /recover\nSitemap: '+origin+'/sitemap.xml');
-  if(path==='/sitemap.xml')return new Response('<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9"><url><loc>'+origin+'/privacy</loc></url></urlset>',{headers:{'Content-Type':'application/xml'}});
+  if(path==='/sitemap.xml'||path.startsWith('/sitemaps/'))return witnessSitemap(env,origin,path);
+  if(path==='/registry')return archivePage(env,origin,url.searchParams);
+  if(path==='/history/'||path==='/history')return url.hostname==='localhost'||url.hostname==='127.0.0.1'?historyPage():Response.redirect(SITE+'history/',301);
   if(path.startsWith('/api/'))throw new RequestError(404,'Route unavailable.');
   if(env.ASSETS){const asset=await env.ASSETS.fetch(req);if(asset.status!==404)return asset;}
   throw new RequestError(404,'Entry unavailable.');
@@ -75,6 +86,7 @@ export default {async fetch(req,env,ctx) {
     out.headers.set('Access-Control-Allow-Headers','Content-Type');
     out.headers.set('Access-Control-Max-Age','86400');out.headers.append('Vary','Origin');
   }
+  if(url.hostname.endsWith('.workers.dev'))out.headers.set('X-Robots-Tag','noindex, follow');
   out.headers.set('Referrer-Policy','no-referrer');out.headers.set('X-Content-Type-Options','nosniff');out.headers.set('X-Frame-Options','DENY');
   out.headers.set('Content-Security-Policy',"default-src 'self'; img-src 'self' blob:; frame-ancestors 'none'; base-uri 'none'; form-action 'self'");
   return out;
