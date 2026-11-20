@@ -21,7 +21,7 @@ async function route(req,env,ctx,url) {
   const {pathname:path,origin}=url,read=req.method==='GET'||req.method==='HEAD';
   restrictOrigin(req,url);
   if(req.method==='OPTIONS')return new Response(null,{status:204});
-  if(path==='/')return origin.includes('localhost')||origin.includes('127.0.0.1')?home(origin):Response.redirect(SITE,302);
+  if(path==='/')return url.hostname==='w.riemannsolved.com'?Response.redirect(SITE,302):home(origin);
   if(path==='/api/register'&&req.method==='POST')return json(await register(env,req,await payload(req)));
   if(path==='/api/recover'&&req.method==='POST')return json(await recover(env,req,await payload(req)));
   if(path==='/api/count'&&read){
@@ -47,12 +47,12 @@ async function route(req,env,ctx,url) {
     if(card[2]){
       const disposition=url.searchParams.has('download')?'attachment':'inline';
       const headers={'Content-Type':'image/png','Cache-Control':'private, no-store','Content-Disposition':disposition+'; filename="riemann-witness-'+serial(id)+'-'+card[2]+'.png"'};
-      return new Response(req.method==='HEAD'?null:await badgePng(w,card[2]==='portrait',url.host),{headers});
+      return new Response(req.method==='HEAD'?null:await badgePng(w,card[2]==='portrait',new URL(SITE).hostname),{headers});
     }
     if(card[1]!==serial(id))return Response.redirect(origin+'/w/'+serial(id),301);
     return witnessPage(origin,w);
   }
-  if(path==='/specimen.png')return new Response(await badgePng(null,false,url.host),{headers:{'Content-Type':'image/png','Cache-Control':'public, max-age=86400'}});
+  if(path==='/specimen.png')return new Response(await badgePng(null,false,new URL(SITE).hostname),{headers:{'Content-Type':'image/png','Cache-Control':'public, max-age=86400'}});
   if(path==='/robots.txt')return new Response('User-agent: *\nDisallow: /api/\nDisallow: /manage\nDisallow: /recover\nSitemap: '+origin+'/sitemap.xml');
   if(path==='/sitemap.xml')return new Response('<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9"><url><loc>'+origin+'/privacy</loc></url></urlset>',{headers:{'Content-Type':'application/xml'}});
   if(path.startsWith('/api/'))throw new RequestError(404,'Route unavailable.');

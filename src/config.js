@@ -1,2 +1,2 @@
-export const SITE='https://1337isnot1337.github.io/riemann-witness/';
+export const SITE='https://riemannsolved.com/';
 export const API='https://riemann-witness.canvaswork.workers.dev';

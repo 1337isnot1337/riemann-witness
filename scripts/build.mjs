@@ -15,6 +15,6 @@ html=html.replace('<head>','<head><meta name="registry-api" content="'+API+'">')
   .replaceAll('content="'+new URL(SITE).origin+'/"','content="'+SITE+'"')
   .replaceAll('href="'+new URL(SITE).origin+'/"','href="'+SITE+'"');
 await writeFile('dist/pages/index.html',html);
-await writeFile('dist/pages/specimen.png',await badgePng(null,false,new URL(API).host));
+await writeFile('dist/pages/specimen.png',await badgePng(null,false,new URL(SITE).hostname));
 await writeFile('dist/pages/sitemap.xml','<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9"><url><loc>'+SITE+'</loc></url></urlset>');
 await writeFile('dist/pages/.nojekyll','');
