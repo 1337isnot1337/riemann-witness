@@ -1,6 +1,6 @@
 # I Was Here
 
-[Open RiemannSolved.com](https://riemannsolved.com/) · [Download the X card](https://riemannsolved.com/registry-card.png)
+[Open RiemannSolved.com](https://riemannsolved.com/) · [Announcement link for X](https://riemannsolved.com/launch/) · [Download the launch artwork](https://riemannsolved.com/launch/announcement.png)
 
 A mobile-first public time capsule for November 20, 2026. The homepage lives on GitHub Pages. A Cloudflare Worker assigns real witness numbers in D1 and serves personalized HTML and PNGs to people and social crawlers. The homepage, fonts, engraving, and specimen are static files. No homelab access or paid service is required.
 
@@ -23,6 +23,8 @@ Open the loopback address printed by Wrangler. Use the same port throughout a lo
 2. Set the canonical homepage and Worker origins in `src/config.js`. When moving to a different domain, review the CORS allowlist in `src/worker.js`. For a Worker custom domain, add a Wrangler custom-domain route after the Cloudflare zone activates.
 3. Run `wrangler d1 migrations apply riemann-witness --remote`. Set `REGISTRY_SECRET`, `ADMIN_TOKEN` and `TURNSTILE_SECRET` as Cloudflare Worker secrets. The last value comes from the managed Turnstile widget paired with the public sitekey in `src/turnstile.js`. Keep production and test keys separate. On initial deployment, `wrangler deploy --secrets-file /private/path/secrets.json` installs both atomically. Use `wrangler deploy` for subsequent code changes. Back up the registry secret privately and keep it stable. Rotating it invalidates existing management and recovery credentials. The admin token can be rotated independently.
 4. In GitHub Pages settings, select GitHub Actions. Push to `main`. The Pages workflow builds, runs the tests and publishes `dist/pages`. In Pages settings, configure the custom domain and enable HTTPS once GitHub provisions its certificate. No Cloudflare credential is stored in GitHub.
+
+The optional GitHub Actions secret `INDEXNOW_KEY` holds a 32-character lowercase hexadecimal key. The Pages workflow publishes its verification file at the site root for IndexNow submissions.
 
 ## Release and operations
 

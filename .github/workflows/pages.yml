@@ -25,6 +25,14 @@ jobs:
           cache: npm
       - run: npm ci
       - run: npm test
+      - name: Publish the search engine ownership file
+        env:
+          INDEXNOW_KEY: ${{ secrets.INDEXNOW_KEY }}
+        run: |
+          if [[ -n "$INDEXNOW_KEY" ]]; then
+            [[ "$INDEXNOW_KEY" =~ ^[a-f0-9]{32}$ ]]
+            printf '%s' "$INDEXNOW_KEY" > "dist/pages/$INDEXNOW_KEY.txt"
+          fi
       - uses: actions/configure-pages@v5
       - id: upload
         uses: actions/upload-pages-artifact@v5
