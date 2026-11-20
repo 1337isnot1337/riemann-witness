@@ -18,32 +18,40 @@ jobs:
       name: github-pages
       url: ${{ steps.publish.outputs.page_url }}
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
         with:
           node-version: 24
           cache: npm
       - run: npm ci
       - run: npm test
       - uses: actions/configure-pages@v5
-      - uses: actions/upload-pages-artifact@v3
+      - id: upload
+        uses: actions/upload-pages-artifact@v5
         with:
           path: dist/pages
           name: pages-${{ github.run_id }}-${{ github.run_attempt }}
-      - name: Wait for the release artifact to be visible
-        env:
-          GH_TOKEN: ${{ github.token }}
-          ARTIFACT: pages-${{ github.run_id }}-${{ github.run_attempt }}
-        run: |
-          for attempt in {1..15}; do
-            if gh api "repos/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID/artifacts" |
-              jq -e --arg name "$ARTIFACT" 'any(.artifacts[]; .name==$name and (.expired|not))' >/dev/null; then
-              exit 0
-            fi
-            sleep 2
-          done
-          exit 1
       - id: publish
-        uses: actions/deploy-pages@v4
+        uses: actions/github-script@v8
+        env:
+          ARTIFACT_ID: ${{ steps.upload.outputs.artifact_id }}
         with:
-          artifact_name: pages-${{ github.run_id }}-${{ github.run_attempt }}
+          script: |
+            const { owner, repo } = context.repo;
+            const { data } = await github.request('POST /repos/{owner}/{repo}/pages/deployments', {
+              owner, repo, artifact_id: Number(process.env.ARTIFACT_ID),
+              pages_build_version: context.sha, oidc_token: await core.getIDToken()
+            });
+            core.setOutput('page_url', data.page_url);
+            for (let attempt = 0; attempt < 90; attempt++) {
+              await new Promise(resolve => setTimeout(resolve, 4000));
+              const result = await github.request('GET /repos/{owner}/{repo}/pages/deployments/{id}', {
+                owner, repo, id: data.id || context.sha
+              });
+              const state = result.data.status;
+              if (state === 'succeed') return;
+              if (['deployment_failed', 'deployment_content_failed', 'deployment_cancelled'].includes(state)) {
+                throw new Error('Pages deployment ended with ' + state);
+              }
+            }
+            throw new Error('Timed out waiting for GitHub Pages');
