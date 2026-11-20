@@ -25,9 +25,10 @@ test('the announcement has its own large card and opens the canonical registrati
 test('movement is an optional layer on the two registration landing pages', { skip: !REGISTRY_OPEN }, async () => {
   for(const path of ['index.html','launch/index.html']){
     const html=await readFile('dist/pages/'+path,'utf8');
+    assert.match(html, /data-webgl-notice role="status" hidden/);
     assert.match(html, /<div class="plate-stage"><img[^>]*critical-strip\.svg/);
     assert.match(html, /<button[^>]*data-motion-switch[^>]*aria-label="Pause animation"/);
-    for(const script of ['hero-motion','plate-motion','plate-orbit']){
+    for(const script of ['hero-motion','plate-motion','plate-orbit','claim-motion']){
       const url=html.match(new RegExp('src="([^"]*'+script+'\\.js\\?v=[a-f0-9]{12})"'));
       assert.ok(url,script+' is missing its asset version');
       const asset=new URL(url[1], SITE+(path==='index.html'?'':'launch/'));

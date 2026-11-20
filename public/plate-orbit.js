@@ -106,12 +106,7 @@ function camera(surface, angle, out) {
   ]);
 }
 
-function createRenderer(canvas) {
-  const gl = canvas.getContext('webgl',{
-    alpha: true, depth: true, antialias: true, powerPreference: 'low-power',
-    preserveDrawingBuffer: true, failIfMajorPerformanceCaveat: false,
-  });
-  if (!gl) return null;
+function createRenderer(canvas, gl) {
   const program = gl.createProgram();
   const vertex = shader(gl,gl.VERTEX_SHADER,vertexSource);
   const fragment = shader(gl,gl.FRAGMENT_SHADER,fragmentSource);
@@ -253,6 +248,21 @@ function attachOrbit(stage) {
   canvas.className = 'plate-orbit';
   canvas.setAttribute('aria-hidden','true');
   stage.append(canvas);
+  const notice = document.querySelector('[data-webgl-notice]');
+  // Check the graph's own context even when animation is paused or below the fold.
+  let gl;
+  try {
+    gl = canvas.getContext('webgl',{
+      alpha: true, depth: true, antialias: true, powerPreference: 'low-power',
+      preserveDrawingBuffer: true, failIfMajorPerformanceCaveat: false,
+    });
+  } catch {
+    // Some browsers deny graphics contexts through a privacy setting.
+  }
+  if (!gl) {
+    if (notice) notice.hidden = false;
+    return;
+  }
   const paintLabels = axisLabels(stage);
   const root = document.documentElement;
   const reduced = matchMedia('(prefers-reduced-motion: reduce)');
@@ -288,7 +298,7 @@ function attachOrbit(stage) {
     }
     if (!cssWidth || !cssHeight) return;
     try {
-      renderer ??= createRenderer(canvas);
+      renderer ??= createRenderer(canvas, gl);
       if (!renderer) throw Error('WebGL unavailable');
       angle = (angle + elapsed * 2 * Math.PI / period) % (2 * Math.PI);
       paintLabels(renderer(angle,t,cssWidth,cssHeight));
@@ -298,7 +308,18 @@ function attachOrbit(stage) {
     }
     sync();
   }
-  canvas.addEventListener('webglcontextlost',() => {failed = true; sync();});
+  canvas.addEventListener('webglcontextlost',event => {
+    event.preventDefault();
+    failed = true;
+    if (notice) notice.hidden = false;
+    sync();
+  });
+  canvas.addEventListener('webglcontextrestored',() => {
+    renderer = undefined;
+    failed = false;
+    if (notice) notice.hidden = true;
+    sync();
+  });
   stage.addEventListener('witness-section',({detail}) => {
     if (Number.isFinite(detail)) t = Math.max(tMin,Math.min(tMin + tRange,detail));
   });
