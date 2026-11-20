@@ -176,7 +176,7 @@ function createRenderer(canvas, gl) {
     gl.bufferSubData(gl.ARRAY_BUFFER,0,data);
   }
   return function draw(angle, t, cssWidth, cssHeight) {
-    const ratio = Math.min(devicePixelRatio || 1,1.5,1000 / cssWidth);
+    const ratio = Math.min(devicePixelRatio || 1,1.5,1600 / cssWidth);
     const w = Math.max(1,Math.round(cssWidth * ratio)), h = Math.max(1,Math.round(cssHeight * ratio));
     if (canvas.width !== w || canvas.height !== h) {
       canvas.width = w; canvas.height = h;
