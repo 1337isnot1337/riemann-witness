@@ -13,32 +13,49 @@ export function historyPage(){
     <figure><img src="${SITE}art/critical-strip.svg" width="736" height="348" alt="Five zeros of the zeta function marked in gold along the critical line"><figcaption>The gold dots on the witness badge mark the first five nontrivial zeros above the real axis. Each sits where the engraved surface reaches zero height.</figcaption></figure>
     <h2>What does a witness number record?</h2><p>A number records when someone signed this independent time capsule. The badge carries two dates. November 20, 2026 marks the announcement. The UTC timestamp records the actual signature, even for someone who arrives later. Visitors choose whether their name and message appear in the public register.</p><div class="actions"><a class="button mint-btn" href="${SITE}#sign">Sign the register</a><a class="button subtle" href="${API}/registry">Browse public witnesses</a></div></main>`});
 }
-export async function archivePage(env,origin,params){
-  const before=params.get('before'),query=new URLSearchParams();
-  if(before)query.set('before',before);
+export async function archivePage(env,url){
+  const raw=url.searchParams.get('before');
+  const before=raw?Number(raw):0;
+  if(raw && (!/^\d+$/.test(raw)||!Number.isSafeInteger(before)||before<1))
+    throw new RequestError(404,'Archive page unavailable.');
+  const path=before?'/registry?before='+before:'/registry';
+  const query=new URLSearchParams();
+  if(before){
+    const newer=await env.DB.prepare('SELECT id FROM witnesses WHERE listed=1 AND id>=? LIMIT 1').bind(before).first();
+    if(!newer)throw new RequestError(404,'Archive page unavailable.');
+    query.set('before',before);
+  }
   const {entries,more}=await registry(env,query);
   if(before && !entries.length)throw new RequestError(404,'Archive page unavailable.');
-  const path=before?'/registry?before='+encodeURIComponent(before):'/registry';
+  if(url.pathname+url.search!==path)return Response.redirect(url.origin+path,301);
   const heading=before?'Witnesses before #'+serial(before):'The witness registry.';
   const list=entries.map(w=>`<li class="signature"><a href="/w/${serial(w.id)}"><span class="serial">#${serial(w.id)}</span><div><strong>${esc(w.name)}</strong>${w.message?'<small>'+esc(w.message)+'</small>':''}</div></a><time datetime="${esc(w.created_at)}">${esc(w.created_at.slice(0,10))}</time></li>`).join('');
-  return page(origin,{path,title:before?heading+' | I Was Here':'Riemann Hypothesis Witness Registry | I Was Here',description:'Browse public signatures from the Riemann Hypothesis time capsule, in registration order. Open a witness’s numbered badge and see when they signed.',body:`<main class="sub" id="main"><h1>${esc(heading)}</h1><p class="lede">Public signatures, newest first.</p><p><a href="${SITE}#registry">Search by name or number</a> · <a href="${SITE}#sign">Sign the register</a></p>${list?'<ol class="archive-list">'+list+'</ol>':'<p>The first public signature will appear here.</p>'}${more?'<a href="/registry?before='+entries.at(-1).id+'">Older signatures</a>':''}</main>`});
+  return page(url.origin,{path,title:before?heading+' | I Was Here':'Riemann Hypothesis Witness Registry | I Was Here',description:'Browse public signatures from the Riemann Hypothesis time capsule, in registration order. Open a witness’s numbered badge and see when they signed.',body:`<main class="sub" id="main"><h1>${esc(heading)}</h1><p class="lede">Public signatures, newest first.</p><p><a href="${SITE}#registry">Search by name or number</a> · <a href="${SITE}#sign">Sign the register</a></p>${list?'<ol class="archive-list">'+list+'</ol>':'<p>The first public signature will appear here.</p>'}${before?'<p><a href="/registry">Newest signatures</a></p>':''}${more?'<p><a href="/registry?before='+entries.at(-1).id+'">Older signatures</a></p>':''}</main>`});
 }
 
-const span=2000, prefix='/sitemaps/witnesses-';
+const span=2000, prefix='/sitemap-witnesses-';
 function xml(kind,contents){
   return new Response('<?xml version="1.0" encoding="UTF-8"?><'+kind+' xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">'+contents+'</'+kind+'>',{headers:{'Content-Type':'application/xml; charset=utf-8','Cache-Control':'no-store'}});
 }
 export async function witnessSitemap(env,origin,path){
+  const legacy=/^\/sitemaps\/(registry\.xml|witnesses-(?:0|[1-9]\d{0,11})\.xml)$/.exec(path);
+  if(legacy)return Response.redirect(origin+'/sitemap-'+legacy[1],301);
   if(path==='/sitemap.xml'){
-    const last=await env.DB.prepare('SELECT id FROM witnesses WHERE listed=1 ORDER BY id DESC LIMIT 1').first();
-    const pages=[origin+'/sitemaps/registry.xml'];
-    for(let i=0;i<Math.ceil((last?.id||0)/span);i++)pages.push(origin+prefix+i+'.xml');
+    // Seek to the first public record in each range using the (listed, id) index.
+    const {results}=await env.DB.prepare(`WITH RECURSIVE public_shards(shard) AS (
+      SELECT (min(id)-1)/?1 FROM witnesses WHERE listed=1
+      UNION ALL
+      SELECT (SELECT (min(id)-1)/?1 FROM witnesses WHERE listed=1 AND id>(shard+1)*?1)
+      FROM public_shards WHERE shard IS NOT NULL
+    ) SELECT shard FROM public_shards WHERE shard IS NOT NULL ORDER BY shard`).bind(span).all();
+    const pages=[origin+'/sitemap-registry.xml',...results.map(({shard})=>origin+prefix+shard+'.xml')];
     return xml('sitemapindex',pages.map(s=>'<sitemap><loc>'+esc(s)+'</loc></sitemap>').join(''));
   }
-  if(path==='/sitemaps/registry.xml')return xml('urlset',['/registry','/privacy'].map(p=>'<url><loc>'+esc(origin+p)+'</loc></url>').join(''));
-  const match=/^\/sitemaps\/witnesses-(0|[1-9]\d{0,9})\.xml$/.exec(path);
+  if(path==='/sitemap-registry.xml')return xml('urlset',['/registry','/privacy'].map(p=>'<url><loc>'+esc(origin+p)+'</loc></url>').join(''));
+  const match=/^\/sitemap-witnesses-(0|[1-9]\d{0,11})\.xml$/.exec(path);
   if(!match)throw new RequestError(404,'Sitemap unavailable.');
   const start=Number(match[1])*span;
   const {results}=await env.DB.prepare('SELECT id FROM witnesses WHERE listed=1 AND id>? AND id<=? ORDER BY id').bind(start,start+span).all();
+  if(!results.length)throw new RequestError(404,'Sitemap unavailable.');
   return xml('urlset',results.map(w=>'<url><loc>'+esc(origin+'/w/'+serial(w.id))+'</loc></url>').join(''));
 }

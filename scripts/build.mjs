@@ -46,7 +46,8 @@ if(!full){
   const history=await historyPage().text();
   await writePublicHtml('history/index.html',history.replace(/href="\/(recover|privacy)"/g,(_,p)=>'href="'+API+'/'+p+'"'));
 }
-await writeFile(pages+'/robots.txt','User-agent: *\nAllow: /\nSitemap: '+SITE+'sitemap.xml\n');
+const registryMap=full?'Sitemap: '+API+'/sitemap.xml\n':'';
+await writeFile(pages+'/robots.txt','User-agent: *\nAllow: /\nSitemap: '+SITE+'sitemap.xml\n'+registryMap);
 const historyUrl=full?'<url><loc>'+SITE+'history/</loc></url>':'';
 await writeFile(pages+'/sitemap.xml','<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9"><url><loc>'+SITE+'</loc></url>'+historyUrl+'</urlset>');
 await writeFile(pages+'/.nojekyll','');

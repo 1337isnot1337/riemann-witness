@@ -32,7 +32,7 @@ async function route(req,env,ctx,url) {
     if(read && ['/holding.css','/coming-soon.png','/seal.svg','/art/critical-strip.svg','/fonts/gloock.woff2'].includes(path) && env.ASSETS)return env.ASSETS.fetch(req);
     return Response.json({error:'The witness registry is coming soon.'},{status:503,headers:{'Cache-Control':'no-store','X-Robots-Tag':'noindex','Retry-After':'86400'}});
   }
-  if(path==='/')return url.hostname==='w.riemannsolved.com'?Response.redirect(SITE,302):home(url.hostname.endsWith('.workers.dev')?new URL(SITE).origin:origin);
+  if(path==='/')return url.hostname===new URL(API).hostname?Response.redirect(SITE,301):home(url.hostname.endsWith('.workers.dev')?new URL(SITE).origin:origin);
   if(path==='/api/register'&&req.method==='POST')return json(await register(env,req,await payload(req)));
   if(path==='/api/recover'&&req.method==='POST')return json(await recover(env,req,await payload(req)));
   if(path==='/api/count'&&read){
@@ -62,9 +62,9 @@ async function route(req,env,ctx,url) {
     return witnessPage(origin.endsWith('.workers.dev')?API:origin,w);
   }
   if(path==='/specimen.png')return new Response(await badgePng(null,false,new URL(SITE).hostname),{headers:{'Content-Type':'image/png','Cache-Control':'public, max-age=86400'}});
-  if(path==='/robots.txt')return new Response('User-agent: *\nDisallow: /api/\nDisallow: /manage\nDisallow: /recover\nSitemap: '+origin+'/sitemap.xml');
-  if(path==='/sitemap.xml'||path.startsWith('/sitemaps/'))return witnessSitemap(env,origin,path);
-  if(path==='/registry')return archivePage(env,origin,url.searchParams);
+  if(path==='/robots.txt')return new Response('User-agent: *\nDisallow: /api/\nSitemap: '+origin+'/sitemap.xml\n');
+  if(path==='/sitemap.xml'||path.startsWith('/sitemap-')||path.startsWith('/sitemaps/'))return witnessSitemap(env,origin,path);
+  if(path==='/registry'||path==='/registry/')return archivePage(env,url);
   if(path==='/history/'||path==='/history')return url.hostname==='localhost'||url.hostname==='127.0.0.1'?historyPage():Response.redirect(SITE+'history/',301);
   if(path.startsWith('/api/'))throw new RequestError(404,'Route unavailable.');
   if(env.ASSETS){const asset=await env.ASSETS.fetch(req);if(asset.status!==404)return asset;}
@@ -87,6 +87,7 @@ export default {async fetch(req,env,ctx) {
     out.headers.set('Access-Control-Max-Age','86400');out.headers.append('Vary','Origin');
   }
   if(url.hostname.endsWith('.workers.dev'))out.headers.set('X-Robots-Tag','noindex, follow');
+  else if(out.status>=400||url.pathname==='/manage'||url.pathname==='/recover')out.headers.set('X-Robots-Tag','noindex, nofollow');
   out.headers.set('Referrer-Policy','no-referrer');out.headers.set('X-Content-Type-Options','nosniff');out.headers.set('X-Frame-Options','DENY');
   out.headers.set('Content-Security-Policy',"default-src 'self'; script-src 'self' https://challenges.cloudflare.com; frame-src https://challenges.cloudflare.com; connect-src 'self' https://challenges.cloudflare.com; img-src 'self' blob:; frame-ancestors 'none'; base-uri 'none'; form-action 'self'");
   return out;
