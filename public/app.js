@@ -12,6 +12,7 @@ async function transport(path,options) {
 }
 async function request(path, options={}) {
   const response=await transport(path,options);
+  if(response.status===204 && path==='/api/register')return null;
   const result=await response.json().catch(()=>null);
   if(!response.ok || !result || typeof result!=='object'){
     throw new Error(result?.error||'The registry returned an unexpected response. Please try again.');
@@ -88,6 +89,7 @@ if(register) {
   }catch{}
   formTask(register,async data=>{
     const row=await request('/api/register',post({...Object.fromEntries(data),listed:data.has('listed'),firstPass,key}));
+    if(row===null)return [];
     if(!Number.isSafeInteger(row.id) || row.id<1)throw new Error('Could not confirm your witness number. Please try again.');
     try{
       sessionStorage.setItem('riemann-recent-owner',row.id+'.'+key);

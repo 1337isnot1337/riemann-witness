@@ -34,7 +34,10 @@ async function route(req,env,ctx,url) {
     return Response.json({error:'The witness registry is coming soon.'},{status:503,headers:{'Cache-Control':'no-store','X-Robots-Tag':'noindex','Retry-After':'86400'}});
   }
   if(path==='/')return url.hostname===new URL(API).hostname?Response.redirect(SITE,301):home(url.hostname.endsWith('.workers.dev')?new URL(SITE).origin:origin);
-  if(path==='/api/register'&&req.method==='POST')return json(await register(env,req,await payload(req)));
+  if(path==='/api/register'&&req.method==='POST'){
+    const row=await register(env,req,await payload(req));
+    return row===null ? new Response(null,{status:204,headers:{'Cache-Control':'no-store'}}) : json(row);
+  }
   if(path==='/api/recover'&&req.method==='POST')return json(await recover(env,req,await payload(req)));
   if(path==='/api/count'&&read){
     const cache=globalThis.caches?.default,key=origin+'/api/count',hit=await cache?.match(key);

@@ -17,6 +17,7 @@ async function mac(env, text) {
 const ownerKey = key => typeof key === 'string' && /^[a-f0-9]{64}$/.test(key);
 const cleaned = value => typeof value === 'string' ? value.trim().normalize('NFC') : '';
 const keyName = value => value.normalize('NFKD').replace(/\p{M}/gu,'').toLowerCase();
+const reservationKey = value => keyName(value).replace(/[\s\p{P}]+/gu,'');
 const reserved = /^(?:(?:the)?(?:riemannregistry|iwashereregistry|admin(?:istrator)?|moderator|support|official|anthropic|claymathematicsinstitute|leventalpoge|bernhardriemann|terencetao))(?:official|admin|team|support)?$/;
 const registrationLimit = 24;
 const rateLimitExceeded = () => fail(429, 'Too many attempts from this network. Try again next hour.');
@@ -47,6 +48,7 @@ export async function register(env, req, body) {
   const prior = await env.DB.prepare('SELECT '+fields+' FROM witnesses WHERE owner_hash=?').bind(owner).first();
   if (prior) return prior;
   const name = cleaned(body.name), message = cleaned(body.message);
+  if (env.RESERVED_DISPLAY_NAME && reservationKey(name)===reservationKey(env.RESERVED_DISPLAY_NAME)) return null;
   if (body.website || !nameSupported(name) || !name || [...name].length>48) fail(400,'Enter a name of up to 48 characters using Latin, Greek or Cyrillic letters and supported punctuation.');
   if (typeof body.listed !== 'boolean') fail(400,'Choose a visibility setting.');
   if (reserved.test(keyName(name).replace(/[^a-z0-9]/g,''))) fail(400,'This name is reserved. Choose a different name.');

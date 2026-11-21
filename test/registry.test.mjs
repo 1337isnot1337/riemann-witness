@@ -8,7 +8,7 @@ const origin='https://registry.example', token=()=>randomBytes(32).toString('hex
 let mf, db;
 before(async()=>{
   mf=new Miniflare({modules:true,scriptPath:'dist/server/index.js',compatibilityDate:'2026-05-01',
-    d1Databases:['DB'],bindings:{LOCAL_REGISTRY_PREVIEW:'1',TURNSTILE_SECRET:'fixture-only',REGISTRY_SECRET:token(),ADMIN_TOKEN:'test-admin'},cache:false,outboundService:async req=>{
+    d1Databases:['DB'],bindings:{LOCAL_REGISTRY_PREVIEW:'1',TURNSTILE_SECRET:'fixture-only',REGISTRY_SECRET:token(),ADMIN_TOKEN:'test-admin',RESERVED_DISPLAY_NAME:'Avery Vale'},cache:false,outboundService:async req=>{
       assert.equal(req.url,'https://challenges.cloudflare.com/turnstile/v0/siteverify');
       assert.equal(req.method,'POST');
       const form=new URLSearchParams(await req.text()),challenge=form.get('response');
@@ -87,6 +87,25 @@ test('private entries and recovery credentials stay out of public routes; record
   assert.deepEqual(await counts(),startingCounts);
   const latest=await(await post('/api/register',entry('after deletion'))).json();assert.ok(latest.id>row.id);
   assert.equal((await post('/api/recover',{challenge:'recover',email,phrase})).status,404);
+});
+test('a private name reservation silently drops fresh claims and preserves the original owner',async()=>{
+  const ip='198.51.100.182', original=entry('original');
+  const witness=await (await post('/api/register',original,ip)).json();
+  // The original witness signed before the reservation was configured.
+  await db.prepare('UPDATE witnesses SET name=?,name_key=? WHERE id=?').bind('Avery Vale','avery vale',witness.id).run();
+  const before=await counts(),rejected=entry('rejected');
+  for(const [name,listed] of [['Avery Vale',true],['  AVERY   VALE  ',false],['Ávery-Vale',true]]){
+    const response=await post('/api/register',{...rejected,name,listed},ip);
+    assert.equal(response.status,204);
+    assert.equal(await response.text(),'');
+  }
+  assert.deepEqual(await counts(),before);
+  const retry=await post('/api/register',{...original,name:'Avery Vale'},ip);
+  assert.equal(retry.status,200);
+  assert.equal((await retry.json()).id,witness.id);
+  const alternate=await post('/api/register',{...rejected,name:'Avery Valencia'},ip);
+  assert.equal(alternate.status,200);
+  assert.equal((await alternate.json()).id,witness.id+1);
 });
 test('validation, moderation, CORS and network cap',async()=>{
   for(const body of [entry(0,{name:'Admin'}),entry(0,{name:'@LeventAlpöge'}),entry(0,{name:' '}),entry(0,{message:'x'.repeat(161)}),entry(0,{website:'bot'}),entry(0,{listed:'false'})])assert.equal((await post('/api/register',body,'203.0.113.2')).status,400);
