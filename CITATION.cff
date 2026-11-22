@@ -1,0 +1,13 @@
+cff-version: 1.2.0
+message: >-
+  If you use or write about this time capsule, please credit Cinna Davis and cite
+  https://riemannsolved.com/. If you discuss the mathematical result, please cite
+  Levent Alpöge’s original announcement at https://alpo.ge/remark.pdf.
+title: I Was Here — Riemann Hypothesis witness registry
+type: software
+authors:
+  - family-names: Davis
+    given-names: Cinna
+    website: https://itsdavis.com/about/
+url: https://riemannsolved.com/
+repository-code: https://github.com/1337isnot1337/riemann-witness

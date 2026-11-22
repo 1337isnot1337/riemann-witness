@@ -19,3 +19,7 @@ Cinna built the site with help from Astra in Codex. The badge engraving is drawn
 
 - [Registry source code](https://github.com/1337isnot1337/riemann-witness)
 - [Cinna Davis’s other projects](https://itsdavis.com/projects/)
+
+## Citation and sources
+
+If you use or write about this time capsule, please credit Cinna Davis and cite [I Was Here](https://riemannsolved.com/). If you discuss the mathematical result, please cite [Levent Alpöge’s original announcement](https://alpo.ge/remark.pdf).

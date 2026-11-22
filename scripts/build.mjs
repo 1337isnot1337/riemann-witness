@@ -18,8 +18,10 @@ const staticPolicy=[
   "connect-src 'self' "+API+" https://challenges.cloudflare.com https://cloudflareinsights.com",
   "frame-src https://challenges.cloudflare.com", "img-src 'self' data:", "object-src 'none'", "base-uri 'none'", "form-action 'none'"
 ].join('; ');
+const citation = `<details><summary>Citation and sources</summary><p>If you use or write about this time capsule, please credit Cinna Davis and cite <a href="${SITE}">I Was Here</a>. If you discuss the mathematical result, please cite <a href="https://alpo.ge/remark.pdf">Levent Alpöge’s original announcement</a>.</p></details>`;
 function writePublicHtml(file,html){
-  const current=html.replace(/((?:src|href)="(?:\.\/|\/))([^"/]+)"/g,
+  const source=full && ['index.html','about/index.html','history/index.html'].includes(file) ? html.replace('</main>',citation+'</main>') : html;
+  const current=source.replace(/((?:src|href)="(?:\.\/|\/))([^"/]+)"/g,
     (match,prefix,asset)=>assetHashes.has(asset)?prefix+asset+'?v='+assetHashes.get(asset)+'"':match);
   const protectedHtml=current.replace('<head>','<head><meta http-equiv="Content-Security-Policy" content="'+staticPolicy+'">');
   return writeFile(pages+'/'+file,preview?protectedHtml:protectedHtml.replace('</body>',beacon+'</body>'));

@@ -53,3 +53,10 @@ Deletion removes the public page and image at the origin. Third-party social cac
 Cloudflare’s published Free limits include 100,000 Worker requests, 100,000 D1 rows written, and 5 million D1 rows read per day across the account. Free D1 databases have a 500 MB limit. [Workers limits](https://developers.cloudflare.com/workers/platform/limits/) · [D1 pricing](https://developers.cloudflare.com/d1/platform/pricing/) · [D1 limits](https://developers.cloudflare.com/d1/platform/limits/)
 
 On November 20, 2026, a disposable remote D1 database with the production schema reported nine row writes for a listed signup from a new network without recovery and eight for a returning network with recovery. These are samples. Expired rate-limit rows, visibility changes and deletion consume more writes. A 100,000-entry local SQLite fixture with 80-character messages and half the users enrolled in recovery occupied 43 MiB. Neither measurement is a concurrent-user or traffic guarantee. GitHub Pages also has [usage limits](https://docs.github.com/en/pages/getting-started-with-github-pages/github-pages-limits).
+
+<details>
+<summary>Citation and sources</summary>
+
+If you use or write about this time capsule, please credit Cinna Davis and cite [I Was Here](https://riemannsolved.com/). If you discuss the mathematical result, please cite [Levent Alpöge’s original announcement](https://alpo.ge/remark.pdf). [Software citation file](CITATION.cff).
+
+</details>

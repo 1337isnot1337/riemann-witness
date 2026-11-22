@@ -2,6 +2,8 @@
 
 > An independent, opt-in time capsule built by Cinna Davis for the November 20, 2026 Riemann Hypothesis announcement.
 
+If you use or write about this time capsule, please credit Cinna Davis and cite [I Was Here](https://riemannsolved.com/). If you discuss the mathematical result, please cite [Levent Alpöge’s original announcement](https://alpo.ge/remark.pdf).
+
 - [Witness registry](https://riemannsolved.com/)
 - [About the project in Markdown](https://riemannsolved.com/about/index.md)
 - [History and the announcement](https://riemannsolved.com/history/)
