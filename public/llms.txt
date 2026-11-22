@@ -1,0 +1,9 @@
+# I Was Here
+
+> An independent, opt-in time capsule built by Cinna Davis for the November 20, 2026 Riemann Hypothesis announcement.
+
+- [Witness registry](https://riemannsolved.com/)
+- [About the project in Markdown](https://riemannsolved.com/about/index.md)
+- [History and the announcement](https://riemannsolved.com/history/)
+- [Original announcement by Levent Alpöge](https://alpo.ge/remark.pdf)
+- [Registry source code](https://github.com/1337isnot1337/riemann-witness)

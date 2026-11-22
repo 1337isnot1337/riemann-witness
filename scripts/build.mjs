@@ -60,7 +60,8 @@ if(!full){
   for(const [section,render] of [['history',historyPage],['about',aboutPage]]){
     await mkdir(pages+'/'+section,{recursive:true});
     const html=await render().text();
-    await writePublicHtml(section+'/index.html',html.replace(/href="\/(recover|privacy)"/g,(_,p)=>'href="'+API+'/'+p+'"'));
+    const content=section==='about' ? html.replace('</head>','<link rel="alternate" type="text/markdown" href="/about/index.md"></head>') : html;
+    await writePublicHtml(section+'/index.html',content.replace(/href="\/(recover|privacy)"/g,(_,p)=>'href="'+API+'/'+p+'"'));
   }
 }
 const registryMap=full?'Sitemap: '+API+'/sitemap.xml\n':'';
