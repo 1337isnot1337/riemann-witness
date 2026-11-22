@@ -24,7 +24,7 @@ export function aboutPage() {
     path: '/about/',
     title: 'About I Was Here | The Riemann Hypothesis Witness Registry',
     description: 'I’m Cinna Davis. I built I Was Here as an independent time capsule for the November 20, 2026 Riemann Hypothesis announcement.',
-    image: '/registry-card.png',
+    image: '/about-preview-v1.png',
     body: `<main id="main" class="about">
       <header class="about-heading">
         <img class="about-engraving" src="/art/critical-strip.svg" alt="" width="736" height="348">

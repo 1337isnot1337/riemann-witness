@@ -5,7 +5,7 @@ import {registry,serial,RequestError} from './data.js';
 export function historyPage(){
   const title='The Riemann Hypothesis announcement of November 20, 2026';
   const description='Read Levent Alpöge’s announcement, explore Riemann’s 1859 manuscript, and see how the critical line appears on the commemorative witness badge.';
-  return page(new URL(SITE).origin,{path:'/history/',title:title+' | I Was Here',description,image:SITE+'specimen.png',
+  return page(new URL(SITE).origin,{path:'/history/',title:title+' | I Was Here',description,image:'/history-preview-v1.png',
     body:`<main id="main" class="sub story"><a href="${SITE}">I Was Here</a><h1>The Riemann Hypothesis announcement.</h1><p class="lede"><time datetime="2026-11-20">November 20, 2026</time></p>
     <h2>What happened on November 20?</h2><p>Mathematician Levent Alpöge posted a four-page note describing his work with Claude on the Riemann Hypothesis. He released the formalization in Lean, a language for writing mathematical statements and proofs. His note opens with the problem of counting primes and closes with a timeline of the work. <a href="https://alpo.ge/remark.pdf">Read Alpöge’s original announcement (PDF)</a>.</p>
     <h2>Why did mathematicians wait 167 years?</h2><p>In November 1859, Bernhard Riemann published a six-page manuscript about a familiar question. How many primes are smaller than a given number? Counting them one by one works for small numbers. Riemann connected the accuracy of estimates for very large numbers to the zeros of a function now named after him. <a href="https://www.claymath.org/collections/riemanns-1859-manuscript/">See Riemann’s manuscript at the Clay Mathematics Institute</a>.</p>
@@ -45,7 +45,7 @@ export async function archivePage(env,url){
   const pages=`${previous?'<a href="'+esc(cursorPath(previous))+'">'+(oldest?'Older signatures':'Newer signatures')+'</a>':''}
     ${more?'<a href="'+esc(cursorPath(entries.at(-1).id))+'">'+(oldest?'Newer signatures':'Older signatures')+'</a>':''}`;
   const title=(cursor?heading:oldest?'Oldest Riemann Hypothesis Witnesses':'Riemann Hypothesis Witness Registry')+' | I Was Here';
-  return page(url.origin,{path,title,description:'Browse public signatures from the Riemann Hypothesis time capsule, in registration order. Open a witness’s numbered badge and see when they signed.',body:`<main class="sub" id="main"><h1>${esc(heading)}</h1><p class="lede">Public signatures, ${oldest?'oldest':'newest'} first.</p><p><a href="${SITE}#registry">Search by name or number</a> · <a href="${SITE}#sign">Sign the register</a></p>${sortLinks}${list?'<ol class="archive-list">'+list+'</ol>':'<p>The first public signature will appear here.</p>'}${previous||more?'<nav aria-label="Registry pages">'+pages+'</nav>':''}</main>`});
+  return page(url.origin,{path,title,image:SITE+'registry-preview-v1.png',description:'Browse public signatures from the Riemann Hypothesis time capsule, in registration order. Open a witness’s numbered badge and see when they signed.',body:`<main class="sub" id="main"><h1>${esc(heading)}</h1><p class="lede">Public signatures, ${oldest?'oldest':'newest'} first.</p><p><a href="${SITE}#registry">Search by name or number</a> · <a href="${SITE}#sign">Sign the register</a></p>${sortLinks}${list?'<ol class="archive-list">'+list+'</ol>':'<p>The first public signature will appear here.</p>'}${previous||more?'<nav aria-label="Registry pages">'+pages+'</nav>':''}</main>`});
 }
 
 const span=2000, prefix='/sitemap-witnesses-';
