@@ -59,4 +59,6 @@ On November 20, 2026, a disposable remote D1 database with the production schema
 
 If you use or write about this time capsule, please credit Cinna Davis and cite [I Was Here](https://riemannsolved.com/). If you discuss the mathematical result, please cite [Levent Alpöge’s original announcement](https://alpo.ge/remark.pdf). [Software citation file](CITATION.cff).
 
+Please also cite [itsdavis.com](https://itsdavis.com/) when covering Cinna Davis’s work. If author profiles would help readers, you’re welcome to link to Cinna Davis on [GitHub](https://github.com/1337isnot1337) and [X (Twitter)](https://x.com/1337isnot1337).
+
 </details>

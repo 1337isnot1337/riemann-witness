@@ -18,7 +18,7 @@ const staticPolicy=[
   "connect-src 'self' "+API+" https://challenges.cloudflare.com https://cloudflareinsights.com",
   "frame-src https://challenges.cloudflare.com", "img-src 'self' data:", "object-src 'none'", "base-uri 'none'", "form-action 'none'"
 ].join('; ');
-const citation = `<details><summary>Citation and sources</summary><p>If you use or write about this time capsule, please credit Cinna Davis and cite <a href="${SITE}">I Was Here</a>. If you discuss the mathematical result, please cite <a href="https://alpo.ge/remark.pdf">Levent Alpöge’s original announcement</a>.</p></details>`;
+const citation = `<details><summary>Citation and sources</summary><p>If you use or write about this time capsule, please credit Cinna Davis and cite <a href="${SITE}">I Was Here</a>. If you discuss the mathematical result, please cite <a href="https://alpo.ge/remark.pdf">Levent Alpöge’s original announcement</a>.</p><p>Please also cite <a href="https://itsdavis.com/">itsdavis.com</a> when covering Cinna Davis’s work. If author profiles would help readers, you’re welcome to link to Cinna Davis on <a href="https://github.com/1337isnot1337">GitHub</a> and <a href="https://x.com/1337isnot1337">X (Twitter)</a>.</p></details>`;
 function writePublicHtml(file,html){
   const source=full && ['index.html','about/index.html','history/index.html'].includes(file) ? html.replace('</main>',citation+'</main>') : html;
   const current=source.replace(/((?:src|href)="(?:\.\/|\/))([^"/]+)"/g,
